@@ -1,0 +1,85 @@
+# Restaurar configuración JWT requerida por el gateway
+security:
+  jwt:
+    secret: cambia-esta-clave-super-segura-de-32+caracteres-2025
+    issuer: modulo-evaluaciones-psicologicas
+    audience: frontend-clients
+    authorities-claim: roles
+server:
+  port: 8080
+  address: 0.0.0.0
+
+spring:
+  application:
+    name: api-gateway
+  main:
+    web-application-type: reactive
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedHeaders: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+      routes:
+        - id: servicio-catalogos
+          uri: ${SERVICIO_CATALOGOS_URL:http://127.0.0.1:8081}
+          predicates:
+            - Path=/catalogos/**
+          filters:
+            - StripPrefix=1
+        - id: servicio-catalogos-api-users
+          uri: ${SERVICIO_CATALOGOS_URL:http://127.0.0.1:8081}
+          predicates:
+            - Path=/catalogos/api/users/**
+          filters:
+            - StripPrefix=1
+        - id: password-change
+          uri: ${SERVICIO_CATALOGOS_URL:http://127.0.0.1:8081}
+          predicates:
+            - Path=/catalogos/password-change/**
+          filters:
+            - StripPrefix=1
+        - id: password-change-api
+          uri: ${SERVICIO_CATALOGOS_URL:http://127.0.0.1:8081}
+          predicates:
+            - Path=/catalogos/api/password-change/**
+          filters:
+            - StripPrefix=1
+        # Eliminado para evitar doble prefijo /gestion
+        - id: servicio-documentos
+          uri: ${SERVICIO_DOCUMENTOS_URL:http://127.0.0.1:8083}
+          predicates:
+            - Path=/documentos/**
+          filters:
+            - StripPrefix=1
+        - id: servicio-gestion-api
+          uri: ${SERVICIO_GESTION_URL:http://127.0.0.1:8082}
+          predicates:
+            - Path=/api/catalogos/cie10,/api/catalogos/cie10/**,/api/seguimientos-psicologicos,/api/seguimientos-psicologicos/**,/api/fichas-psicologicas,/api/fichas-psicologicas/**,/api/atenciones,/api/atenciones/**,/api/personal-militar,/api/personal-militar/**,/api/psicologos,/api/psicologos/**,/api/reportes,/api/reportes/**
+        - id: servicio-gestion-reportes-debug
+          uri: ${SERVICIO_GESTION_URL:http://127.0.0.1:8082}
+          predicates:
+            - Path=/api/reportes-debug/**
+          # Filtro PrefixPath eliminado para evitar doble /gestion
+          # Filtro PrefixPath eliminado para evitar doble /gestion
+
+# security:
+#   jwt:
+#     secret: cambia-esta-clave-super-segura-de-32+caracteres-2025
+#     issuer: modulo-evaluaciones-psicologicas
+#     audience: frontend-clients
+#     authorities-claim: roles

@@ -1,0 +1,31 @@
+server:
+  address: 127.0.0.1
+  port: 8081
+
+spring:
+  application:
+    name: servicio-catalogos
+  datasource:
+    url: jdbc:oracle:thin:@localhost:1521/xepdb1
+    username: ${DB_USERNAME:user_hc}
+    password: ${DB_PASSWORD:secure_password_2025}
+    driver-class-name: oracle.jdbc.OracleDriver
+  jpa:
+    generate-ddl: true
+    hibernate:
+      ddl-auto: update
+
+security:
+  roles:
+    admin: ADMINISTRADOR
+    psychologist: PSICOLOGO
+  jwt:
+    secret: ${JWT_SECRET:cambia-esta-clave-super-segura-de-32+caracteres-2025}
+    issuer: ${JWT_ISSUER:modulo-evaluaciones-psicologicas}
+    audience: ${JWT_AUDIENCE:frontend-clients}
+  dev:
+    plainAuth: true
+
+services:
+  gestion:
+    base-url: ${SERVICIO_GESTION_URL:http://127.0.0.1:8082}
