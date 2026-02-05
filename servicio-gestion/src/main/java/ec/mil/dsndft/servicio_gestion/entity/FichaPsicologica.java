@@ -56,10 +56,7 @@ import org.hibernate.annotations.NotFoundAction;
 @Builder
 @Entity
 @Table(
-    name = "fichas_psicologicas",
-    indexes = {
-        @Index(name = "ix_fichas_psicologicas_cie", columnList = "catalogo_cie10_id")
-    }
+    name = "fichas_psicologicas"
 )
 public class FichaPsicologica {
 

@@ -1,9 +1,7 @@
-
 package ec.mil.dsndft.servicio_gestion.service.impl;
 
 import ec.mil.dsndft.servicio_gestion.entity.FichaPsicologica;
 import ec.mil.dsndft.servicio_gestion.model.dto.AtencionSeguimientoRequestDTO;
-import ec.mil.dsndft.servicio_gestion.model.enums.EstadoFichaEnum;
 import ec.mil.dsndft.servicio_gestion.repository.FichaPsicologicaRepository;
 
 import ec.mil.dsndft.servicio_gestion.entity.AtencionPsicologica;
@@ -18,6 +16,7 @@ import ec.mil.dsndft.servicio_gestion.repository.PersonalMilitarRepository;
 import ec.mil.dsndft.servicio_gestion.repository.PsicologoRepository;
 import ec.mil.dsndft.servicio_gestion.service.AtencionPsicologicaService;
 import lombok.RequiredArgsConstructor;
+import ec.mil.dsndft.servicio_gestion.service.support.AuthenticatedPsicologoProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,15 +26,22 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageImpl;
+import ec.mil.dsndft.servicio_gestion.entity.AtencionPsicologicaHistorial;
+import ec.mil.dsndft.servicio_gestion.repository.AtencionPsicologicaHistorialRepository;
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaService {
 
     private final AtencionPsicologicaRepository atencionRepository;
     private final PersonalMilitarRepository personalMilitarRepository;
-    private final PsicologoRepository psicologoRepository;
+    // private final PsicologoRepository psicologoRepository; // No longer used, replaced by AuthenticatedPsicologoProvider
     private final CatalogoDiagnosticoCie10Repository cie10Repository;
     private final FichaPsicologicaRepository fichaPsicologicaRepository;
+    private final AtencionPsicologicaHistorialRepository historialRepository;
+    private final AuthenticatedPsicologoProvider authenticatedPsicologoProvider;
+
     @Override
     @Transactional
     public AtencionPsicologicaResponseDTO crearAtencionSeguimiento(AtencionSeguimientoRequestDTO request) {
@@ -47,9 +53,8 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
             throw new RuntimeException("Solo se pueden registrar atenciones para fichas en seguimiento");
         }
 
-        // Buscar psicólogo
-        Psicologo psicologo = psicologoRepository.findById(request.getPsicologoId())
-            .orElseThrow(() -> new RuntimeException("Psicólogo no encontrado"));
+        // Usar el psicólogo autenticado
+        Psicologo psicologo = authenticatedPsicologoProvider.requireCurrent();
 
         // Diagnósticos
         List<CatalogoDiagnosticoCie10> diagnosticos = null;
@@ -78,6 +83,15 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
             .build();
 
         AtencionPsicologica saved = atencionRepository.save(atencion);
+        // Audit: Crear historial con el psicólogo autenticado
+        AtencionPsicologicaHistorial historial = AtencionPsicologicaHistorial.builder()
+            .atencion(saved)
+            .estado(saved.getEstado())
+            .razonCambio("Creación de atención de seguimiento")
+            .psicologo(psicologo)
+            .fechaCambio(LocalDateTime.now())
+            .build();
+        historialRepository.save(historial);
         return convertirAResponseDTO(saved);
     }
 
@@ -88,9 +102,8 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
         PersonalMilitar paciente = personalMilitarRepository.findById(request.getPersonalMilitarId())
             .orElseThrow(() -> new RuntimeException("Paciente no encontrado"));
         
-        // Buscar psicólogo
-        Psicologo psicologo = psicologoRepository.findById(request.getPsicologoId())
-            .orElseThrow(() -> new RuntimeException("Psicólogo no encontrado"));
+        // Usar el psicólogo autenticado
+        Psicologo psicologo = authenticatedPsicologoProvider.requireCurrent();
         
         // Obtener diagnósticos si se proporcionaron
         List<CatalogoDiagnosticoCie10> diagnosticos = null;
@@ -127,6 +140,15 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
                 .build();
         
         AtencionPsicologica saved = atencionRepository.save(atencion);
+        // Audit: Crear historial con el psicólogo autenticado
+        AtencionPsicologicaHistorial historial = AtencionPsicologicaHistorial.builder()
+            .atencion(saved)
+            .estado(saved.getEstado())
+            .razonCambio("Creación de atención")
+            .psicologo(psicologo)
+            .fechaCambio(LocalDateTime.now())
+            .build();
+        historialRepository.save(historial);
         return convertirAResponseDTO(saved);
     }
 
@@ -168,6 +190,16 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
         }
         
         AtencionPsicologica updated = atencionRepository.save(atencion);
+        // Audit: Crear historial con el psicólogo autenticado
+        Psicologo psicologo = authenticatedPsicologoProvider.requireCurrent();
+        AtencionPsicologicaHistorial historial = AtencionPsicologicaHistorial.builder()
+            .atencion(updated)
+            .estado(updated.getEstado())
+            .razonCambio("Actualización de atención")
+            .psicologo(psicologo)
+            .fechaCambio(LocalDateTime.now())
+            .build();
+        historialRepository.save(historial);
         return convertirAResponseDTO(updated);
     }
 
@@ -246,6 +278,15 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
         atencion.setEstado("FINALIZADA");
         
         AtencionPsicologica updated = atencionRepository.save(atencion);
+        // Audit: Crear historial
+        AtencionPsicologicaHistorial historial = AtencionPsicologicaHistorial.builder()
+            .atencion(updated)
+            .estado(updated.getEstado())
+            .razonCambio("Finalización de atención")
+            .psicologo(updated.getPsicologo())
+            .fechaCambio(LocalDateTime.now())
+            .build();
+        historialRepository.save(historial);
         return convertirAResponseDTO(updated);
     }
 
@@ -259,6 +300,50 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
         atencion.setRazonCancelacion(razon);
         
         AtencionPsicologica updated = atencionRepository.save(atencion);
+        // Audit: Crear historial
+        AtencionPsicologicaHistorial historial = AtencionPsicologicaHistorial.builder()
+            .atencion(updated)
+            .estado(updated.getEstado())
+            .razonCambio("Cancelación: " + razon)
+            .psicologo(updated.getPsicologo())
+            .fechaCambio(LocalDateTime.now())
+            .build();
+        historialRepository.save(historial);
+        return convertirAResponseDTO(updated);
+    }
+
+    @Override
+    @Transactional
+    public AtencionPsicologicaResponseDTO reprogramarAtencion(Long id, ec.mil.dsndft.servicio_gestion.model.dto.ReprogramarAtencionRequest request) {
+        AtencionPsicologica atencion = atencionRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Atención no encontrada"));
+
+        // Solo permitir reprogramar si la atención está activa y no cancelada/finalizada
+        if (!Boolean.TRUE.equals(atencion.getActivo()) || "CANCELADA".equals(atencion.getEstado()) || "FINALIZADA".equals(atencion.getEstado())) {
+            throw new RuntimeException("Solo se pueden reprogramar atenciones activas y no finalizadas/canceladas");
+        }
+
+        // Actualizar los campos de reprogramación
+        if (request.getFechaAtencion() != null) atencion.setFechaAtencion(request.getFechaAtencion());
+        if (request.getHoraInicio() != null) atencion.setHoraInicio(request.getHoraInicio().toString());
+        if (request.getHoraFin() != null) atencion.setHoraFin(request.getHoraFin().toString());
+        if (request.getTipoAtencion() != null) atencion.setTipoAtencion(request.getTipoAtencion());
+        if (request.getMotivoReprogramacion() != null) atencion.setMotivoConsulta(request.getMotivoReprogramacion());
+
+        // Siempre cambiar el estado a REPROGRAMADA
+        atencion.setEstado("REPROGRAMADA");
+
+        AtencionPsicologica updated = atencionRepository.save(atencion);
+        // Audit: Crear historial con el psicólogo autenticado
+        Psicologo psicologo = authenticatedPsicologoProvider.requireCurrent();
+        AtencionPsicologicaHistorial historial = AtencionPsicologicaHistorial.builder()
+            .atencion(updated)
+            .estado(updated.getEstado())
+            .razonCambio("Reprogramación de atención")
+            .psicologo(psicologo)
+            .fechaCambio(LocalDateTime.now())
+            .build();
+        historialRepository.save(historial);
         return convertirAResponseDTO(updated);
     }
 

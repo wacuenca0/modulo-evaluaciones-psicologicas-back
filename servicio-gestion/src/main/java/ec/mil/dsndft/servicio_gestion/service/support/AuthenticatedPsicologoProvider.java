@@ -66,19 +66,29 @@ public class AuthenticatedPsicologoProvider {
             displayName = strPrincipal;
         }
 
-        if (username == null || username.isBlank()) {
-            log.error("No se pudo determinar el usuario autenticado. Principal: {}", principal);
-            throw new EntityNotFoundException("No se pudo determinar el usuario autenticado");
-        }
-
-        Optional<Psicologo> opt = psicologoRepository.findByUsernameIgnoreCase(username);
-        if (opt.isPresent()) {
-            Psicologo psicologo = reactivarSiEstabaInactivo(opt.get());
-            if (Boolean.FALSE.equals(psicologo.getActivo())) {
-                log.error("El psicólogo asociado a la sesión está inactivo. Username: {} (ID: {})", username, psicologo.getId());
-                throw new EntityNotFoundException("El psicólogo asociado a la sesión está inactivo");
+        // Buscar primero por usuarioId si está presente
+        if (tokenUserId != null) {
+            Optional<Psicologo> opt = psicologoRepository.findByUsuarioId(tokenUserId);
+            if (opt.isPresent()) {
+                Psicologo psicologo = reactivarSiEstabaInactivo(opt.get());
+                if (Boolean.FALSE.equals(psicologo.getActivo())) {
+                    log.error("El psicólogo asociado a la sesión está inactivo. UsuarioId: {} (ID: {})", tokenUserId, psicologo.getId());
+                    throw new EntityNotFoundException("El psicólogo asociado a la sesión está inactivo");
+                }
+                return psicologo;
             }
-            return psicologo;
+        }
+        // Si no se encuentra por usuarioId, buscar por username
+        if (username != null && !username.isBlank()) {
+            Optional<Psicologo> opt = psicologoRepository.findByUsernameIgnoreCase(username);
+            if (opt.isPresent()) {
+                Psicologo psicologo = reactivarSiEstabaInactivo(opt.get());
+                if (Boolean.FALSE.equals(psicologo.getActivo())) {
+                    log.error("El psicólogo asociado a la sesión está inactivo. Username: {} (ID: {})", username, psicologo.getId());
+                    throw new EntityNotFoundException("El psicólogo asociado a la sesión está inactivo");
+                }
+                return psicologo;
+            }
         }
         // Si no existe, lanzar error y NO crear uno nuevo
         log.error("El psicólogo autenticado no existe en la base de datos. Username: {} (userId: {})", username, tokenUserId);

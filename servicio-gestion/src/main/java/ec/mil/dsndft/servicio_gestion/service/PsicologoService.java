@@ -10,4 +10,5 @@ public interface PsicologoService {
     void deleteById(Long id);
     String obtenerNombrePorUsuarioId(Long usuarioId);
     PsicologoDTO findByUsuarioId(Long usuarioId);
+    PsicologoDTO findByCedula(String cedula);
 }

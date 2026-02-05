@@ -1,6 +1,7 @@
 package ec.mil.dsndft.servicio_gestion.service;
 
 import ec.mil.dsndft.servicio_gestion.model.dto.AtencionPsicologicaRequestDTO;
+import ec.mil.dsndft.servicio_gestion.model.dto.ReprogramarAtencionRequest;
 import ec.mil.dsndft.servicio_gestion.model.dto.AtencionPsicologicaResponseDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,4 +28,6 @@ public interface AtencionPsicologicaService {
     AtencionPsicologicaResponseDTO cancelarAtencion(Long id, String razon);
     // Nuevo: crear atención de seguimiento para ficha en seguimiento
     AtencionPsicologicaResponseDTO crearAtencionSeguimiento(ec.mil.dsndft.servicio_gestion.model.dto.AtencionSeguimientoRequestDTO request);
+    // Nuevo: reprogramar atención
+    AtencionPsicologicaResponseDTO reprogramarAtencion(Long id, ReprogramarAtencionRequest request);
 }

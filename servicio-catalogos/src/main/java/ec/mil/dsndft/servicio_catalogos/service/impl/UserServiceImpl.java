@@ -11,6 +11,7 @@ import ec.mil.dsndft.servicio_catalogos.model.integration.PsicologoResponse;
 import ec.mil.dsndft.servicio_catalogos.model.mapper.UserMapper;
 import ec.mil.dsndft.servicio_catalogos.repository.RoleRepository;
 import ec.mil.dsndft.servicio_catalogos.repository.UsuarioRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 import ec.mil.dsndft.servicio_catalogos.service.UserService;
 
 @Service
+@Slf4j
 public class UserServiceImpl implements UserService {
 
     private final UsuarioRepository usuarioRepository;
@@ -45,14 +47,21 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserDTO createUser(CreateUserRequestDTO createUserRequestDTO) {
         // 1. Validar si ya existe usuario con el mismo username (ignorando mayúsculas/minúsculas)
-        usuarioRepository.findByUsernameIgnoreCase(createUserRequestDTO.getUsername().trim())
+        String usernameTrim = createUserRequestDTO.getUsername() != null ? createUserRequestDTO.getUsername().trim() : null;
+        if (usernameTrim == null || usernameTrim.isEmpty()) {
+            log.error("Intento de crear usuario sin username. Payload: {}", createUserRequestDTO);
+            throw new IllegalArgumentException("El nombre de usuario es obligatorio");
+        }
+        usuarioRepository.findByUsernameIgnoreCase(usernameTrim)
             .ifPresent(u -> {
+                log.warn("Intento de crear usuario duplicado: {}", usernameTrim);
                 throw new DataIntegrityViolationException("Ya existe un usuario con ese nombre de usuario");
             });
 
         // 2. Validar datos del psicólogo
         CreateUserRequestDTO.PsicologoData psicologoData = createUserRequestDTO.getPsicologo();
         if (psicologoData == null) {
+            log.error("Intento de crear usuario sin datos de psicólogo. Payload: {}", createUserRequestDTO);
             throw new IllegalArgumentException("Debe proporcionar los datos del psicólogo asociado al usuario");
         }
         // Validaciones de campos obligatorios y formato
@@ -61,17 +70,18 @@ public class UserServiceImpl implements UserService {
         // 3. Verificar si ya existe un psicólogo con la misma cédula
         try {
             PsicologoResponse existingPsicologo = psicologoClient.buscarPorCedula(psicologoData.getCedula().trim());
-            if (existingPsicologo != null && existingPsicologo.getActivo() != null && existingPsicologo.getActivo()) {
+            if (existingPsicologo != null && Boolean.TRUE.equals(existingPsicologo.getActivo())) {
+                log.warn("Intento de crear psicólogo duplicado con cédula: {}", psicologoData.getCedula());
                 throw new DataIntegrityViolationException("Ya existe un psicólogo activo con la cédula: " + psicologoData.getCedula());
             }
         } catch (HttpClientErrorException.NotFound ex) {
-            // Psicólogo no encontrado, está bien para continuar
+            log.info("No existe psicólogo previo con cédula: {}. Se puede crear.", psicologoData.getCedula());
         } catch (RestClientException ex) {
-            // Error al verificar, continuar pero registrar log
-            System.err.println("Advertencia: No se pudo verificar existencia de psicólogo: " + ex.getMessage());
+            log.error("Error al verificar existencia de psicólogo por cédula {}: {}", psicologoData.getCedula(), ex.getMessage(), ex);
+            throw new IllegalStateException("No se pudo verificar la existencia del psicólogo por un error de red");
         }
 
-        // 4. Crear usuario
+        // 4. Crear usuario y psicólogo solo si todas las validaciones pasan
         Role role = roleRepository.findById(createUserRequestDTO.getRoleId())
             .filter(Role::getActivo)
             .orElseThrow(() -> new IllegalArgumentException("Rol no encontrado o inactivo"));
@@ -85,40 +95,30 @@ public class UserServiceImpl implements UserService {
         usuario.setBloqueado(false);
         usuario.setIntentosLogin(0);
         usuario = usuarioRepository.save(usuario);
+        log.info("Usuario creado correctamente en base de datos: {} (ID: {})", usuario.getUsername(), usuario.getId());
 
-        try {
-            // 5. Crear psicólogo en el servicio externo
-            PsicologoCreateRequest psicologoRequest = new PsicologoCreateRequest();
-            psicologoRequest.setCedula(psicologoData.getCedula().trim());
-            psicologoRequest.setNombres(psicologoData.getNombres().trim());
-            psicologoRequest.setApellidos(psicologoData.getApellidos().trim());
-            psicologoRequest.setApellidosNombres((psicologoData.getApellidos().trim() + " " + psicologoData.getNombres().trim()).trim());
-            psicologoRequest.setUsername(usuario.getUsername());
-            psicologoRequest.setEmail(createUserRequestDTO.getEmail());
-            psicologoRequest.setUsuarioId(usuario.getId());
-            psicologoRequest.setTelefono(psicologoData.getTelefono());
-            psicologoRequest.setCelular(psicologoData.getCelular());
-            psicologoRequest.setGrado(psicologoData.getGrado());
-            psicologoRequest.setUnidadMilitar(psicologoData.getUnidadMilitar());
-            psicologoRequest.setEspecialidad(psicologoData.getEspecialidad());
-            psicologoRequest.setActivo(Boolean.TRUE);
+        // 5. Crear psicólogo en el servicio externo (siempre, sin importar el rol)
+        PsicologoCreateRequest psicologoRequest = new PsicologoCreateRequest();
+        psicologoRequest.setCedula(psicologoData.getCedula().trim());
+        psicologoRequest.setNombres(psicologoData.getNombres().trim());
+        psicologoRequest.setApellidos(psicologoData.getApellidos().trim());
+        psicologoRequest.setApellidosNombres((psicologoData.getApellidos().trim() + " " + psicologoData.getNombres().trim()).trim());
+        psicologoRequest.setUsername(usuario.getUsername());
+        psicologoRequest.setEmail(createUserRequestDTO.getEmail());
+        psicologoRequest.setUsuarioId(usuario.getId());
+        psicologoRequest.setTelefono(psicologoData.getTelefono());
+        psicologoRequest.setCelular(psicologoData.getCelular());
+        psicologoRequest.setGrado(psicologoData.getGrado());
+        psicologoRequest.setUnidadMilitar(psicologoData.getUnidadMilitar());
+        psicologoRequest.setEspecialidad(psicologoData.getEspecialidad());
+        psicologoRequest.setActivo(Boolean.TRUE);
 
-            psicologoClient.crearPsicologo(psicologoRequest);
-
-        } catch (HttpClientErrorException.Conflict ex) {
-            // Si hay conflicto al crear el psicólogo, revertir la creación del usuario
-            usuarioRepository.delete(usuario);
-            throw new DataIntegrityViolationException(
-                "No se pudo crear el psicólogo debido a un conflicto de datos: " + ex.getMessage()
-            );
-        } catch (RestClientException ex) {
-            // Si hay error en la comunicación, revertir todo
-            usuarioRepository.delete(usuario);
-            throw new IllegalStateException(
-                "No se pudo registrar el psicólogo asociado al usuario. Operación revertida.",
-                ex
-            );
+        PsicologoResponse psicologoCreado = psicologoClient.crearPsicologo(psicologoRequest);
+        if (psicologoCreado == null || psicologoCreado.getId() == null) {
+            log.error("No se pudo crear el psicólogo en el microservicio de gestión. Payload: {}", psicologoRequest);
+            throw new IllegalStateException("No se pudo crear el psicólogo en el microservicio de gestión");
         }
+        log.info("Psicólogo creado correctamente en gestión: {} (ID: {})", psicologoCreado.getCedula(), psicologoCreado.getId());
 
         return userMapper.toDTO(usuario);
     }
@@ -134,7 +134,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("Los apellidos del psicólogo son obligatorios");
         }
         // Validar formato de cédula (ejemplo para Ecuador)
-        if (!psicologoData.getCedula().trim().matches("^[0-9]{10}$")) {
+        if (!psicologoData.getCedula().trim().matches("^\\d{10}$")) {
             throw new IllegalArgumentException("La cédula debe tener 10 dígitos numéricos");
         }
     }
@@ -158,7 +158,6 @@ public class UserServiceImpl implements UserService {
             usuario.setRole(role);
         }
 
-        usuarioRepository.save(usuario);
         return userMapper.toDTO(usuario);
     }
 

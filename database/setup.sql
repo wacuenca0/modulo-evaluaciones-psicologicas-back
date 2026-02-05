@@ -221,18 +221,13 @@ CREATE TABLE password_change_requests (
     motivo           VARCHAR2(500 CHAR),
     status           VARCHAR2(20 CHAR)  NOT NULL,
     requested_at     TIMESTAMP(6)       DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    processed_at     TIMESTAMP(6),
-    processed_by     VARCHAR2(50 CHAR),
-    admin_notes      VARCHAR2(500 CHAR),
-    unlock_account   NUMBER(1, 0),
     CONSTRAINT pk_password_change_requests PRIMARY KEY (id),
-    CONSTRAINT ck_password_change_status CHECK (status IN ('PENDIENTE','COMPLETADO','RECHAZADO')),
     CONSTRAINT ck_password_change_unlock CHECK (unlock_account IN (0, 1) OR unlock_account IS NULL)
 );
 
-ALTER TABLE password_change_requests
-    ADD CONSTRAINT fk_password_change_usuario FOREIGN KEY (usuario_id)
-        REFERENCES usuarios (id);
+    ALTER TABLE password_change_requests
+        ADD CONSTRAINT fk_password_change_usuario FOREIGN KEY (usuario_id)
+            REFERENCES usuarios (id);
 
 CREATE INDEX idx_password_change_status ON password_change_requests (status, requested_at);
 
@@ -262,7 +257,6 @@ CREATE TABLE personal_militar (
     especialidad      VARCHAR2(100 CHAR),
     unidad_militar    VARCHAR2(150 CHAR),
     provincia         VARCHAR2(100 CHAR),
-    canton            VARCHAR2(100 CHAR),
     parroquia         VARCHAR2(100 CHAR),
     barrio_sector     VARCHAR2(100 CHAR),
     telefono          VARCHAR2(20 CHAR),
@@ -271,7 +265,6 @@ CREATE TABLE personal_militar (
     activo            NUMBER(1, 0)       DEFAULT 1 NOT NULL,
     created_at        TIMESTAMP(6)       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at        TIMESTAMP(6)       DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT pk_personal_militar PRIMARY KEY (id),
     CONSTRAINT uk_personal_militar_cedula UNIQUE (cedula),
     CONSTRAINT ck_personal_militar_flags CHECK (es_militar IN (0,1) AND servicio_activo IN (0,1) AND servicio_pasivo IN (0,1) AND activo IN (0,1))
 );
@@ -284,7 +277,6 @@ BEGIN
 END;
 /
 
-CREATE SEQUENCE seq_psicologos START WITH 1 INCREMENT BY 1 NOCACHE;
 
 CREATE TABLE psicologos (
     id                NUMBER(19, 0)      NOT NULL,
@@ -295,14 +287,12 @@ CREATE TABLE psicologos (
     apellidos_nombres VARCHAR2(240 CHAR) NOT NULL,
     username          VARCHAR2(50 CHAR)  NOT NULL,
     email             VARCHAR2(100 CHAR),
-    telefono          VARCHAR2(20 CHAR),
     celular           VARCHAR2(20 CHAR),
     grado             VARCHAR2(80 CHAR),
     unidad_militar    VARCHAR2(120 CHAR),
     especialidad      VARCHAR2(120 CHAR),
     activo            NUMBER(1, 0)       DEFAULT 1 NOT NULL,
     created_at        TIMESTAMP(6)       DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at        TIMESTAMP(6)       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT pk_psicologos PRIMARY KEY (id),
     CONSTRAINT uk_psicologos_cedula UNIQUE (cedula),
     CONSTRAINT uk_psicologos_username UNIQUE (username),

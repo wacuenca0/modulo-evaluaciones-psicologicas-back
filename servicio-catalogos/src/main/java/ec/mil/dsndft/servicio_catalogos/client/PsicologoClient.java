@@ -1,4 +1,5 @@
 
+
 package ec.mil.dsndft.servicio_catalogos.client;
 
 import ec.mil.dsndft.servicio_catalogos.model.integration.PsicologoCreateRequest;
@@ -31,7 +32,7 @@ public class PsicologoClient {
         this.baseUrl = baseUrl;
     }
     public PsicologoResponse buscarPorCedula(String cedula) {
-        String url = baseUrl + "/gestion/api/psicologos/buscar?cedula=" + cedula;
+        String url = baseUrl + "/api/psicologos/buscar?cedula=" + cedula;
         try {
             HttpHeaders headers = buildHeadersWithAuth();
             HttpEntity<Void> entity = new HttpEntity<>(headers);
@@ -52,7 +53,7 @@ public class PsicologoClient {
         }
     }
     public PsicologoResponse crearPsicologo(PsicologoCreateRequest request) {
-        String url = baseUrl + "/gestion/api/psicologos";
+        String url = baseUrl + "/api/psicologos";
         try {
             HttpHeaders headers = buildHeadersWithAuth();
             HttpEntity<PsicologoCreateRequest> entity = new HttpEntity<>(request, headers);
@@ -86,5 +87,32 @@ public class PsicologoClient {
         }
 
         return headers;
+    }
+
+        public void deletePsicologoByCedula(String cedula) {
+        String url = baseUrl + "/gestion/api/psicologos/buscar?cedula=" + cedula;
+        try {
+            HttpHeaders headers = buildHeadersWithAuth();
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            // Buscar el psicólogo por cédula
+            ResponseEntity<PsicologoResponse> response = restTemplate.exchange(
+                url,
+                org.springframework.http.HttpMethod.GET,
+                entity,
+                PsicologoResponse.class
+            );
+            PsicologoResponse body = response.getBody();
+            if (body != null && body.getId() != null) {
+                String deleteUrl = baseUrl + "/gestion/api/psicologos/" + body.getId();
+                restTemplate.exchange(
+                    deleteUrl,
+                    org.springframework.http.HttpMethod.DELETE,
+                    entity,
+                    Void.class
+                );
+            }
+        } catch (RestClientException ex) {
+            log.error("Error al intentar eliminar psicólogo por cédula {}: {}", cedula, ex.getMessage());
+        }
     }
 }

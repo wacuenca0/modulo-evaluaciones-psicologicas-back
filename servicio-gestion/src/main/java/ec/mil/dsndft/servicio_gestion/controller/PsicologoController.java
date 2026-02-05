@@ -18,6 +18,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestController
+// Si el context-path está activado como '/gestion', el endpoint será '/gestion/api/psicologos'.
 @RequestMapping("/api/psicologos")
 @RequiredArgsConstructor
 public class PsicologoController {
@@ -54,9 +55,42 @@ public class PsicologoController {
 
 	@PreAuthorize("hasRole('ADMINISTRADOR')")
 	@PostMapping
-	public ResponseEntity<PsicologoDTO> crearPsicologo(@RequestBody PsicologoDTO dto) {
+	public ResponseEntity<PsicologoDTO> crearPsicologo(@RequestBody Object body) {
+		// Log para depuración del tipo de body recibido
+		System.out.println("[DEBUG] Body recibido en crearPsicologo: " + (body != null ? body.getClass() : "null"));
+		PsicologoDTO dto;
+		if (body instanceof PsicologoDTO) {
+			dto = (PsicologoDTO) body;
+		} else {
+			// Intentar mapear desde PsicologoCreateRequest
+			dto = mapPsicologoCreateRequestToDTO(body);
+		}
 		PsicologoDTO creado = psicologoService.save(dto);
 		return ResponseEntity.created(URI.create("/api/psicologos/" + creado.getId())).body(creado);
+	}
+
+	// Método auxiliar para mapear PsicologoCreateRequest a PsicologoDTO
+	private PsicologoDTO mapPsicologoCreateRequestToDTO(Object body) {
+		// Conversión manual, asumiendo que el body es un LinkedHashMap (por Jackson)
+		if (body instanceof java.util.Map) {
+			java.util.Map<?,?> map = (java.util.Map<?,?>) body;
+			PsicologoDTO dto = new PsicologoDTO();
+			dto.setCedula((String) map.get("cedula"));
+			dto.setNombres((String) map.get("nombres"));
+			dto.setApellidos((String) map.get("apellidos"));
+			dto.setApellidosNombres((String) map.get("apellidosNombres"));
+			dto.setUsuarioId(map.get("usuarioId") != null ? Long.valueOf(map.get("usuarioId").toString()) : null);
+			dto.setUsername((String) map.get("username"));
+			dto.setEmail((String) map.get("email"));
+			dto.setTelefono((String) map.get("telefono"));
+			dto.setCelular((String) map.get("celular"));
+			dto.setGrado((String) map.get("grado"));
+			dto.setUnidadMilitar((String) map.get("unidadMilitar"));
+			dto.setEspecialidad((String) map.get("especialidad"));
+			dto.setActivo(map.get("activo") != null ? Boolean.valueOf(map.get("activo").toString()) : Boolean.TRUE);
+			return dto;
+		}
+		throw new IllegalArgumentException("Tipo de cuerpo no soportado para crear psicólogo");
 	}
 
 	@PreAuthorize("hasRole('ADMINISTRADOR')")

@@ -29,6 +29,13 @@ public class PsicologoServiceImpl implements PsicologoService {
                 .orElseThrow(() -> new EntityNotFoundException("Psicólogo no encontrado para el usuario"));
     }
 
+    @Override
+    public PsicologoDTO findByCedula(String cedula) {
+        return repository.findByCedula(cedula)
+                .map(mapper::toDTO)
+                .orElse(null);
+    }
+
     private final PsicologoRepository repository;
     private final PsicologoMapper mapper;
 

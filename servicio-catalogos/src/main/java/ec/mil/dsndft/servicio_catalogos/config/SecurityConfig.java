@@ -64,7 +64,15 @@ public class SecurityConfig {
             "http://127.0.0.1:8080"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        config.setAllowedHeaders(List.of(
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+            "x-usuario-nombre",
+            "x-usuario-id"
+        ));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
