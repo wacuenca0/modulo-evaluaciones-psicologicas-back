@@ -75,6 +75,24 @@ public class PsicologoClient {
         }
     }
 
+    public PsicologoResponse buscarPorUsuarioId(Long usuarioId) {
+        String url = baseUrl + "/api/psicologos/por-usuario/" + usuarioId;
+        try {
+            HttpHeaders headers = buildHeadersWithAuth();
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<PsicologoResponse> response = restTemplate.exchange(
+                url,
+                org.springframework.http.HttpMethod.GET,
+                entity,
+                PsicologoResponse.class
+            );
+            return response.getBody();
+        } catch (RestClientException ex) {
+            log.error("Error al invocar {} para obtener psicólogo por usuarioId {}", url, usuarioId, ex);
+            throw ex;
+        }
+    }
+
     private HttpHeaders buildHeadersWithAuth() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
