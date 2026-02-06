@@ -316,6 +316,31 @@ public class FichaPsicologicaServiceImpl implements FichaPsicologicaService {
         return mapper.toDTOs(fichas);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<FichaPsicologicaDTO> obtenerHistorialPorPersonalPaginado(
+            Long personalMilitarId,
+            String cedulaPsicologo,
+            java.time.LocalDate fechaDesde,
+            java.time.LocalDate fechaHasta,
+            org.springframework.data.domain.Pageable pageable) {
+        if (personalMilitarId == null) {
+            throw new IllegalArgumentException("El identificador del personal militar es obligatorio");
+        }
+        boolean existe = personalMilitarRepository.existsById(personalMilitarId);
+        if (!existe) {
+            throw new EntityNotFoundException("Personal militar no encontrado");
+        }
+        org.springframework.data.domain.Page<FichaPsicologica> pageEntities = fichaPsicologicaRepository
+                .findHistorialByFilters(personalMilitarId,
+                        (cedulaPsicologo == null || cedulaPsicologo.isBlank()) ? null : cedulaPsicologo.trim(),
+                        fechaDesde,
+                        fechaHasta,
+                        pageable);
+        java.util.List<FichaPsicologicaDTO> content = mapper.toDTOs(pageEntities.getContent());
+        return new org.springframework.data.domain.PageImpl<>(content, pageable, pageEntities.getTotalElements());
+    }
+
     // ============================================
     // NUEVOS MÉTODOS PARA LAS SECCIONES ADICIONALES
     // ============================================

@@ -48,7 +48,7 @@ public class PsicologoController {
 	}
 
 	@PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO')")
-	@GetMapping("/{id}")
+	@GetMapping("/{id:\\d+}")
 	public ResponseEntity<PsicologoDTO> obtenerPsicologo(@PathVariable Long id) {
 		return ResponseEntity.ok(psicologoService.findById(id));
 	}
@@ -94,16 +94,46 @@ public class PsicologoController {
 	}
 
 	@PreAuthorize("hasRole('ADMINISTRADOR')")
-	@PutMapping("/{id}")
+	@PutMapping("/{id:\\d+}")
 	public ResponseEntity<PsicologoDTO> actualizarPsicologo(@PathVariable Long id, @RequestBody PsicologoDTO dto) {
 		dto.setId(id);
 		return ResponseEntity.ok(psicologoService.save(dto));
 	}
 
 	@PreAuthorize("hasRole('ADMINISTRADOR')")
-	@DeleteMapping("/{id}")
+	@DeleteMapping("/{id:\\d+}")
 	public ResponseEntity<Void> eliminarPsicologo(@PathVariable Long id) {
 		psicologoService.deleteById(id);
 		return ResponseEntity.noContent().build();
+	}
+
+	@PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO','OBSERVADOR')")
+	@GetMapping("/buscar")
+	public ResponseEntity<List<PsicologoDTO>> buscar(
+	        @org.springframework.web.bind.annotation.RequestParam(name = "q", required = false) String q,
+	        @org.springframework.web.bind.annotation.RequestParam(name = "cedula", required = false) String cedula
+	) {
+		// Si se provee cédula, priorizar búsqueda exacta por cédula
+		if (cedula != null && !cedula.isBlank()) {
+			PsicologoDTO encontrado = psicologoService.findByCedula(cedula);
+			return ResponseEntity.ok(encontrado != null ? java.util.List.of(encontrado) : java.util.List.of());
+		}
+		// Búsqueda básica en memoria por texto (nombres/apellidos/username/email)
+		List<PsicologoDTO> todos = psicologoService.findAll();
+		if (q == null || q.isBlank()) {
+			return ResponseEntity.ok(todos);
+		}
+		String term = q.toLowerCase();
+		List<PsicologoDTO> filtrados = todos.stream()
+			.filter(p -> {
+				String acumulado = String.join(" ",
+					p.getApellidosNombres() != null ? p.getApellidosNombres() : "",
+					p.getUsername() != null ? p.getUsername() : "",
+					p.getEmail() != null ? p.getEmail() : ""
+				).toLowerCase();
+				return acumulado.contains(term);
+			})
+			.toList();
+		return ResponseEntity.ok(filtrados);
 	}
 }

@@ -16,6 +16,18 @@ spring:
     generate-ddl: true
     hibernate:
       ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.Oracle12cDialect
+    properties: {}
+
+ficha:
+  archivos:
+    ftp:
+      enabled: false
+
+app:
+  debug:
+    controllers:
+      enabled: false
+  controllers:
+    fichas:
+      enabled: true
+

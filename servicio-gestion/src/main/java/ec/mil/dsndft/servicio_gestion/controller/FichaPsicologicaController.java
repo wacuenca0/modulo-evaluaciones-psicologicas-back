@@ -5,6 +5,7 @@ import ec.mil.dsndft.servicio_gestion.service.FichaPsicologicaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,6 +16,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/fichas-psicologicas")
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "app.controllers.fichas", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class FichaPsicologicaController {
 
     private final FichaPsicologicaService fichaPsicologicaService;
@@ -51,6 +53,37 @@ public class FichaPsicologicaController {
     public ResponseEntity<List<FichaPsicologicaDTO>> obtenerHistorial(@PathVariable Long personalMilitarId) {
         return ResponseEntity.ok(fichaPsicologicaService.obtenerHistorialPorPersonal(personalMilitarId));
     }
+
+        // Nuevo endpoint: historial paginado con filtros (cédula del psicólogo y rango de fechas)
+        @PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO')")
+        @GetMapping("/historial/{personalMilitarId}/page")
+        public ResponseEntity<ec.mil.dsndft.servicio_gestion.model.dto.FichaPsicologicaPageSafeDTO> obtenerHistorialPaginado(
+            @PathVariable Long personalMilitarId,
+            @RequestParam(required = false) String cedulaPsicologo,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fechaDesde,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fechaHasta,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+        ) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        org.springframework.data.domain.Page<FichaPsicologicaDTO> result = fichaPsicologicaService.obtenerHistorialPorPersonalPaginado(
+            personalMilitarId,
+            cedulaPsicologo,
+            fechaDesde,
+            fechaHasta,
+            pageable
+        );
+        ec.mil.dsndft.servicio_gestion.model.dto.FichaPsicologicaPageSafeDTO dto = new ec.mil.dsndft.servicio_gestion.model.dto.FichaPsicologicaPageSafeDTO(
+            result.getContent(),
+            result.getNumber(),
+            result.getSize(),
+            result.getTotalElements(),
+            result.getTotalPages(),
+            result.isLast(),
+            result.isFirst()
+        );
+        return ResponseEntity.ok(dto);
+        }
 
 
     @PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO')")

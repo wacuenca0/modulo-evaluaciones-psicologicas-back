@@ -36,17 +36,22 @@ public class PsicologoClient {
         try {
             HttpHeaders headers = buildHeadersWithAuth();
             HttpEntity<Void> entity = new HttpEntity<>(headers);
-            ResponseEntity<PsicologoResponse> response = restTemplate.exchange(
+            // El endpoint /api/psicologos/buscar devuelve una lista JSON, tomamos el primero
+            ResponseEntity<PsicologoResponse[]> response = restTemplate.exchange(
                 url,
                 org.springframework.http.HttpMethod.GET,
                 entity,
-                PsicologoResponse.class
+                PsicologoResponse[].class
             );
-            PsicologoResponse body = response.getBody();
-            if (body == null) {
-                log.warn("El servicio de gestión devolvió una respuesta vacía al buscar el psicólogo con cédula {}", cedula);
+            PsicologoResponse[] body = response.getBody();
+            if (body == null || body.length == 0) {
+                log.info("No se encontró psicólogo con cédula {} en servicio de gestión", cedula);
+                return null;
             }
-            return body;
+            if (body.length > 1) {
+                log.warn("El servicio de gestión devolvió {} psicólogos para la cédula {}. Se tomará el primero.", body.length, cedula);
+            }
+            return body[0];
         } catch (RestClientException ex) {
             log.error("Error al invocar {} para buscar psicólogo por cédula", url, ex);
             throw ex;
@@ -89,21 +94,21 @@ public class PsicologoClient {
         return headers;
     }
 
-        public void deletePsicologoByCedula(String cedula) {
-        String url = baseUrl + "/gestion/api/psicologos/buscar?cedula=" + cedula;
+    public void deletePsicologoByCedula(String cedula) {
+        String url = baseUrl + "/api/psicologos/buscar?cedula=" + cedula;
         try {
             HttpHeaders headers = buildHeadersWithAuth();
             HttpEntity<Void> entity = new HttpEntity<>(headers);
-            // Buscar el psicólogo por cédula
-            ResponseEntity<PsicologoResponse> response = restTemplate.exchange(
+            // Buscar el psicólogo por cédula (lista JSON, tomar primero)
+            ResponseEntity<PsicologoResponse[]> response = restTemplate.exchange(
                 url,
                 org.springframework.http.HttpMethod.GET,
                 entity,
-                PsicologoResponse.class
+                PsicologoResponse[].class
             );
-            PsicologoResponse body = response.getBody();
-            if (body != null && body.getId() != null) {
-                String deleteUrl = baseUrl + "/gestion/api/psicologos/" + body.getId();
+            PsicologoResponse[] body = response.getBody();
+            if (body != null && body.length > 0 && body[0].getId() != null) {
+                String deleteUrl = baseUrl + "/api/psicologos/" + body[0].getId();
                 restTemplate.exchange(
                     deleteUrl,
                     org.springframework.http.HttpMethod.DELETE,

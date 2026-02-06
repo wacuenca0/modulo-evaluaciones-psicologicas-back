@@ -4,6 +4,8 @@ import ec.mil.dsndft.servicio_gestion.entity.ArchivoFichaPsicologica;
 import ec.mil.dsndft.servicio_gestion.entity.FichaPsicologica;
 import ec.mil.dsndft.servicio_gestion.repository.FichaPsicologicaRepository;
 import ec.mil.dsndft.servicio_gestion.service.FtpService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/archivos-ficha")
 @RequiredArgsConstructor
+@ConditionalOnClass(name = "ec.mil.dsndft.servicio_gestion.service.FtpService")
+@ConditionalOnProperty(prefix = "ficha.archivos.ftp", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class ArchivoFichaPsicologicaController {
     private final FtpService ftpService;
     private final FichaPsicologicaRepository fichaPsicologicaRepository;

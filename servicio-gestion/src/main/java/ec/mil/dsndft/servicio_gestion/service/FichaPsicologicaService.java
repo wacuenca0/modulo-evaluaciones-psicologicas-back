@@ -40,6 +40,14 @@ public interface FichaPsicologicaService {
     FichaPsicologicaDTO finalizarFicha(Long id);
 
     List<FichaPsicologicaDTO> obtenerHistorialPorPersonal(Long personalMilitarId);
+
+        // Nuevo: historial paginado con filtros opcionales
+        org.springframework.data.domain.Page<FichaPsicologicaDTO> obtenerHistorialPorPersonalPaginado(
+            Long personalMilitarId,
+            String cedulaPsicologo,
+            java.time.LocalDate fechaDesde,
+            java.time.LocalDate fechaHasta,
+            org.springframework.data.domain.Pageable pageable);
     
     // NUEVOS MÉTODOS para las nuevas secciones
     

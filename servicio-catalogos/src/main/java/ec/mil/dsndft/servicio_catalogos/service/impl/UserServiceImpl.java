@@ -58,33 +58,39 @@ public class UserServiceImpl implements UserService {
                 throw new DataIntegrityViolationException("Ya existe un usuario con ese nombre de usuario");
             });
 
-        // 2. Validar datos del psicólogo
-        CreateUserRequestDTO.PsicologoData psicologoData = createUserRequestDTO.getPsicologo();
-        if (psicologoData == null) {
-            log.error("Intento de crear usuario sin datos de psicólogo. Payload: {}", createUserRequestDTO);
-            throw new IllegalArgumentException("Debe proporcionar los datos del psicólogo asociado al usuario");
-        }
-        // Validaciones de campos obligatorios y formato
-        validatePsicologoData(psicologoData);
-
-        // 3. Verificar si ya existe un psicólogo con la misma cédula
-        try {
-            PsicologoResponse existingPsicologo = psicologoClient.buscarPorCedula(psicologoData.getCedula().trim());
-            if (existingPsicologo != null && Boolean.TRUE.equals(existingPsicologo.getActivo())) {
-                log.warn("Intento de crear psicólogo duplicado con cédula: {}", psicologoData.getCedula());
-                throw new DataIntegrityViolationException("Ya existe un psicólogo activo con la cédula: " + psicologoData.getCedula());
-            }
-        } catch (HttpClientErrorException.NotFound ex) {
-            log.info("No existe psicólogo previo con cédula: {}. Se puede crear.", psicologoData.getCedula());
-        } catch (RestClientException ex) {
-            log.error("Error al verificar existencia de psicólogo por cédula {}: {}", psicologoData.getCedula(), ex.getMessage(), ex);
-            throw new IllegalStateException("No se pudo verificar la existencia del psicólogo por un error de red");
-        }
-
-        // 4. Crear usuario y psicólogo solo si todas las validaciones pasan
+        // 2. Resolver rol y validar datos del psicólogo SOLO si el rol requiere psicólogo
         Role role = roleRepository.findById(createUserRequestDTO.getRoleId())
             .filter(Role::getActivo)
             .orElseThrow(() -> new IllegalArgumentException("Rol no encontrado o inactivo"));
+
+        boolean requierePsicologo = role.getNombre() != null && role.getNombre().equalsIgnoreCase("Psicologo");
+        CreateUserRequestDTO.PsicologoData psicologoData = createUserRequestDTO.getPsicologo();
+        if (requierePsicologo) {
+            if (psicologoData == null) {
+                log.error("Intento de crear usuario con rol Psicologo sin datos de psicólogo. Payload: {}", createUserRequestDTO);
+                throw new IllegalArgumentException("Debe proporcionar los datos del psicólogo asociado al usuario");
+            }
+            // Validaciones de campos obligatorios y formato
+            validatePsicologoData(psicologoData);
+        }
+
+        // 3. Verificar si ya existe un psicólogo con la misma cédula (solo si aplica)
+        if (requierePsicologo) {
+            try {
+                PsicologoResponse existingPsicologo = psicologoClient.buscarPorCedula(psicologoData.getCedula().trim());
+                if (existingPsicologo != null && Boolean.TRUE.equals(existingPsicologo.getActivo())) {
+                    log.warn("Intento de crear psicólogo duplicado con cédula: {}", psicologoData.getCedula());
+                    throw new DataIntegrityViolationException("Ya existe un psicólogo activo con la cédula: " + psicologoData.getCedula());
+                }
+            } catch (HttpClientErrorException.NotFound ex) {
+                log.info("No existe psicólogo previo con cédula: {}. Se puede crear.", psicologoData.getCedula());
+            } catch (RestClientException ex) {
+                log.error("Error al verificar existencia de psicólogo por cédula {}: {}", psicologoData.getCedula(), ex.getMessage(), ex);
+                throw new IllegalStateException("No se pudo verificar la existencia del psicólogo por un error de red");
+            }
+        }
+
+        // 4. Crear usuario y (opcionalmente) psicólogo solo si todas las validaciones pasan
 
         Usuario usuario = new Usuario();
         usuario.setUsername(createUserRequestDTO.getUsername().trim().toLowerCase());
@@ -97,28 +103,32 @@ public class UserServiceImpl implements UserService {
         usuario = usuarioRepository.save(usuario);
         log.info("Usuario creado correctamente en base de datos: {} (ID: {})", usuario.getUsername(), usuario.getId());
 
-        // 5. Crear psicólogo en el servicio externo (siempre, sin importar el rol)
-        PsicologoCreateRequest psicologoRequest = new PsicologoCreateRequest();
-        psicologoRequest.setCedula(psicologoData.getCedula().trim());
-        psicologoRequest.setNombres(psicologoData.getNombres().trim());
-        psicologoRequest.setApellidos(psicologoData.getApellidos().trim());
-        psicologoRequest.setApellidosNombres((psicologoData.getApellidos().trim() + " " + psicologoData.getNombres().trim()).trim());
-        psicologoRequest.setUsername(usuario.getUsername());
-        psicologoRequest.setEmail(createUserRequestDTO.getEmail());
-        psicologoRequest.setUsuarioId(usuario.getId());
-        psicologoRequest.setTelefono(psicologoData.getTelefono());
-        psicologoRequest.setCelular(psicologoData.getCelular());
-        psicologoRequest.setGrado(psicologoData.getGrado());
-        psicologoRequest.setUnidadMilitar(psicologoData.getUnidadMilitar());
-        psicologoRequest.setEspecialidad(psicologoData.getEspecialidad());
-        psicologoRequest.setActivo(Boolean.TRUE);
+        // 5. Crear psicólogo en el servicio externo SOLO si el rol es Psicologo
+        if (requierePsicologo) {
+            PsicologoCreateRequest psicologoRequest = new PsicologoCreateRequest();
+            psicologoRequest.setCedula(psicologoData.getCedula().trim());
+            psicologoRequest.setNombres(psicologoData.getNombres().trim());
+            psicologoRequest.setApellidos(psicologoData.getApellidos().trim());
+            psicologoRequest.setApellidosNombres((psicologoData.getApellidos().trim() + " " + psicologoData.getNombres().trim()).trim());
+            psicologoRequest.setUsername(usuario.getUsername());
+            psicologoRequest.setEmail(createUserRequestDTO.getEmail());
+            psicologoRequest.setUsuarioId(usuario.getId());
+            psicologoRequest.setTelefono(psicologoData.getTelefono());
+            psicologoRequest.setCelular(psicologoData.getCelular());
+            psicologoRequest.setGrado(psicologoData.getGrado());
+            psicologoRequest.setUnidadMilitar(psicologoData.getUnidadMilitar());
+            psicologoRequest.setEspecialidad(psicologoData.getEspecialidad());
+            psicologoRequest.setActivo(Boolean.TRUE);
 
-        PsicologoResponse psicologoCreado = psicologoClient.crearPsicologo(psicologoRequest);
-        if (psicologoCreado == null || psicologoCreado.getId() == null) {
-            log.error("No se pudo crear el psicólogo en el microservicio de gestión. Payload: {}", psicologoRequest);
-            throw new IllegalStateException("No se pudo crear el psicólogo en el microservicio de gestión");
+            PsicologoResponse psicologoCreado = psicologoClient.crearPsicologo(psicologoRequest);
+            if (psicologoCreado == null || psicologoCreado.getId() == null) {
+                log.error("No se pudo crear el psicólogo en el microservicio de gestión. Payload: {}", psicologoRequest);
+                throw new IllegalStateException("No se pudo crear el psicólogo en el microservicio de gestión");
+            }
+            log.info("Psicólogo creado correctamente en gestión: {} (ID: {})", psicologoCreado.getCedula(), psicologoCreado.getId());
+        } else {
+            log.info("Rol '{}' no requiere creación de psicólogo. Usuario ID: {}", role.getNombre(), usuario.getId());
         }
-        log.info("Psicólogo creado correctamente en gestión: {} (ID: {})", psicologoCreado.getCedula(), psicologoCreado.getId());
 
         return userMapper.toDTO(usuario);
     }

@@ -5,6 +5,7 @@ import ec.mil.dsndft.servicio_gestion.model.dto.reportes.ReporteSeguimientoTrans
 import ec.mil.dsndft.servicio_gestion.model.enums.CondicionClinicaEnum;
 import ec.mil.dsndft.servicio_gestion.model.enums.EstadoFichaEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,6 +15,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface FichaPsicologicaRepository extends JpaRepository<FichaPsicologica, Long> {
 
     // Método existente de filtros
@@ -74,6 +76,20 @@ public interface FichaPsicologicaRepository extends JpaRepository<FichaPsicologi
     List<FichaPsicologica> findByPersonalMilitarIdOrderByFechaEvaluacionDesc(Long personalMilitarId);
     boolean existsByNumeroEvaluacion(String numeroEvaluacion);
     Optional<FichaPsicologica> findByNumeroEvaluacion(String numeroEvaluacion);
+    
+    // Historial paginado por personal con filtros opcionales de cédula del psicólogo y rango de fechas
+    @Query("SELECT f FROM FichaPsicologica f " +
+          "WHERE f.personalMilitar.id = :personalMilitarId " +
+          "AND (:cedulaPsicologo IS NULL OR (f.psicologo IS NOT NULL AND UPPER(f.psicologo.cedula) = UPPER(:cedulaPsicologo))) " +
+          "AND (:fechaDesde IS NULL OR f.fechaEvaluacion >= :fechaDesde) " +
+          "AND (:fechaHasta IS NULL OR f.fechaEvaluacion <= :fechaHasta) " +
+          "ORDER BY f.fechaEvaluacion DESC, f.createdAt DESC")
+    org.springframework.data.domain.Page<FichaPsicologica> findHistorialByFilters(
+           @Param("personalMilitarId") Long personalMilitarId,
+           @Param("cedulaPsicologo") String cedulaPsicologo,
+           @Param("fechaDesde") java.time.LocalDate fechaDesde,
+           @Param("fechaHasta") java.time.LocalDate fechaHasta,
+           org.springframework.data.domain.Pageable pageable);
     
     // NUEVOS MÉTODOS para actualizar las nuevas secciones
     

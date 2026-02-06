@@ -9,6 +9,7 @@ import ec.mil.dsndft.servicio_gestion.entity.AtencionPsicologicaHistorial;
 import ec.mil.dsndft.servicio_gestion.model.dto.AtencionPsicologicaHistorialDTO;
 import ec.mil.dsndft.servicio_gestion.model.dto.ReprogramarAtencionRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/atenciones")
 @RequiredArgsConstructor
+@ConditionalOnBean(AtencionPsicologicaService.class)
 public class AtencionPsicologicaController {
     private final AtencionPsicologicaService atencionService;
     private final AtencionPsicologicaHistorialRepository historialRepository;
