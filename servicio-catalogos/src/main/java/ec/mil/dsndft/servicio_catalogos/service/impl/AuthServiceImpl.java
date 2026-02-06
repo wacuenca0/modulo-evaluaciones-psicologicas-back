@@ -1,8 +1,11 @@
 package ec.mil.dsndft.servicio_catalogos.service.impl;
 
+import ec.mil.dsndft.servicio_catalogos.client.PsicologoClient;
 import ec.mil.dsndft.servicio_catalogos.config.JwtService;
+import ec.mil.dsndft.servicio_catalogos.model.dto.CurrentUserWithPsicologoDTO;
 import ec.mil.dsndft.servicio_catalogos.model.dto.LoginRequestDTO;
 import ec.mil.dsndft.servicio_catalogos.model.dto.UserDTO;
+import ec.mil.dsndft.servicio_catalogos.model.dto.SelfPasswordChangeDTO;
 import ec.mil.dsndft.servicio_catalogos.model.mapper.UserMapper;
 import ec.mil.dsndft.servicio_catalogos.repository.UsuarioRepository;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -31,15 +34,20 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final boolean plainAuthEnabled;
     private final PasswordEncoder passwordEncoder;
+    private final PsicologoClient psicologoClient;
 
-    public AuthServiceImpl(JwtService jwtService, UsuarioRepository usuarioRepository, UserMapper userMapper,
+    public AuthServiceImpl(JwtService jwtService,
+                           UsuarioRepository usuarioRepository,
+                           UserMapper userMapper,
                            @Value("${security.dev.plainAuth:false}") boolean plainAuthEnabled,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           PsicologoClient psicologoClient) {
         this.jwtService = jwtService;
         this.usuarioRepository = usuarioRepository;
         this.userMapper = userMapper;
         this.plainAuthEnabled = plainAuthEnabled;
         this.passwordEncoder = passwordEncoder;
+        this.psicologoClient = psicologoClient;
     }
 
     @Override
@@ -111,5 +119,61 @@ public class AuthServiceImpl implements AuthService {
         return usuarioRepository.findByUsername(username)
             .map(userMapper::toDTO)
             .orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public void changeOwnPassword(SelfPasswordChangeDTO request) {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        var usuario = usuarioRepository.findByUsername(username)
+            .orElseThrow(() -> new IllegalStateException("Usuario autenticado no encontrado"));
+
+        String stored = usuario.getPasswordHash();
+        String provided = request.getCurrentPassword();
+        if (stored == null || provided == null) {
+            throw new BadCredentialsException("Contraseña actual incorrecta");
+        }
+
+        boolean isBcrypt = stored.startsWith("$2a$") || stored.startsWith("$2b$") || stored.startsWith("$2y$");
+        boolean passwordMatches;
+        if (isBcrypt) {
+            passwordMatches = passwordEncoder.matches(provided, stored);
+        } else {
+            passwordMatches = stored.equals(provided);
+        }
+
+        if (!passwordMatches) {
+            throw new BadCredentialsException("Contraseña actual incorrecta");
+        }
+
+        usuario.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        usuarioRepository.save(usuario);
+        log.info("Usuario {} cambió su contraseña correctamente", username);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CurrentUserWithPsicologoDTO getCurrentUserWithPsicologo() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        var usuario = usuarioRepository.findByUsername(username)
+            .orElseThrow(() -> new IllegalStateException("Usuario autenticado no encontrado"));
+
+        UserDTO userDto = userMapper.toDTO(usuario);
+
+        CurrentUserWithPsicologoDTO result = new CurrentUserWithPsicologoDTO();
+        result.setUser(userDto);
+
+        String roleName = userDto.getRoleName() != null ? userDto.getRoleName() : "";
+        if (roleName.equalsIgnoreCase("Psicologo")) {
+            try {
+                var psicologo = psicologoClient.buscarPorUsuarioId(usuario.getId());
+                result.setPsicologo(psicologo);
+            } catch (Exception ex) {
+                log.warn("No se pudo obtener psicólogo para usuario {}: {}", username, ex.getMessage());
+                result.setPsicologo(null);
+            }
+        }
+
+        return result;
     }
 }

@@ -2,6 +2,8 @@ package ec.mil.dsndft.servicio_catalogos.controller;
 
 import ec.mil.dsndft.servicio_catalogos.model.dto.LoginRequestDTO;
 import ec.mil.dsndft.servicio_catalogos.model.dto.UserDTO;
+import ec.mil.dsndft.servicio_catalogos.model.dto.SelfPasswordChangeDTO;
+import ec.mil.dsndft.servicio_catalogos.model.dto.CurrentUserWithPsicologoDTO;
 import ec.mil.dsndft.servicio_catalogos.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,6 +39,24 @@ public class AuthController {
     public ResponseEntity<UserDTO> getCurrentUser() {
         UserDTO userDTO = authService.getCurrentUser();
         return ResponseEntity.ok(userDTO);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/current-user-with-psicologo")
+    @Operation(summary = "Obtener usuario actual con psicólogo",
+               description = "Devuelve los datos del usuario autenticado y, si aplica, del psicólogo asociado a ese usuario")
+    public ResponseEntity<CurrentUserWithPsicologoDTO> getCurrentUserWithPsicologo() {
+        CurrentUserWithPsicologoDTO dto = authService.getCurrentUserWithPsicologo();
+        return ResponseEntity.ok(dto);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/change-password")
+    @Operation(summary = "Cambiar contraseña propia",
+               description = "Permite al usuario autenticado cambiar su propia contraseña indicando la actual y la nueva")
+    public ResponseEntity<Void> changeOwnPassword(@RequestBody SelfPasswordChangeDTO request) {
+        authService.changeOwnPassword(request);
+        return ResponseEntity.noContent().build();
     }
 
     /**

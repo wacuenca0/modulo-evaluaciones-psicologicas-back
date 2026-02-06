@@ -8,7 +8,9 @@ spring:
   application:
     name: servicio-gestion
   datasource:
-    url: jdbc:oracle:thin:@localhost:1521/xepdb1
+    # Permite usar la BD local por defecto o sobreescribir via variables (ideal para Docker)
+    # En Docker usaremos: DB_HOST=oracle-db, DB_PORT=1521, DB_SERVICE=FREEPDB1
+    url: jdbc:oracle:thin:@${DB_HOST:localhost}:${DB_PORT:1521}/${DB_SERVICE:xepdb1}
     username: ${DB_USERNAME:user_hc}
     password: ${DB_PASSWORD:secure_password_2025}
     driver-class-name: oracle.jdbc.OracleDriver

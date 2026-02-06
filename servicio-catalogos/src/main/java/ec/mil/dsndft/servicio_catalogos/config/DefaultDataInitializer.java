@@ -44,6 +44,7 @@ public class DefaultDataInitializer implements CommandLineRunner {
 
         Role adminRole = ensureRole("ADMINISTRADOR", "Rol administrador del catálogo", 10);
         Role psicologoRole = ensureRole("PSICOLOGO", "Rol psicólogo del catálogo", 5);
+        Role observadorRole = ensureRole("OBSERVADOR", "Rol observador del catálogo", 1);
 
         ensureDefaultAdminUser(adminRole);
 
@@ -85,6 +86,8 @@ public class DefaultDataInitializer implements CommandLineRunner {
             usuarioRepository.save(usuario);
             log.info("Default user psicologo01 created");
         });
+
+        ensureDefaultObserverUser(observadorRole);
     }
 
     private void ensureDefaultAdminUser(Role adminRole) {
@@ -128,6 +131,47 @@ public class DefaultDataInitializer implements CommandLineRunner {
         });
     }
 
+    private void ensureDefaultObserverUser(Role observadorRole) {
+        usuarioRepository.findByUsername("observador01").ifPresentOrElse(existing -> {
+            boolean dirty = false;
+            if (existing.getRole() == null || observadorRole == null || !observadorRole.getId().equals(existing.getRole().getId())) {
+                existing.setRole(observadorRole);
+                dirty = true;
+            }
+            String storedHash = existing.getPasswordHash();
+            if (storedHash == null || !passwordEncoder.matches("Admin#123", storedHash)) {
+                existing.setPasswordHash(passwordEncoder.encode("Admin#123"));
+                dirty = true;
+            }
+            if (existing.getEmail() == null) {
+                existing.setEmail("observador01@example.com");
+                dirty = true;
+            }
+            if (!Boolean.TRUE.equals(existing.getActivo())) {
+                existing.setActivo(true);
+                dirty = true;
+            }
+            if (Boolean.TRUE.equals(existing.getBloqueado())) {
+                existing.setBloqueado(false);
+                dirty = true;
+            }
+            if (dirty) {
+                usuarioRepository.save(existing);
+                log.info("Default user observador01 normalized");
+            }
+        }, () -> {
+            Usuario usuario = new Usuario();
+            usuario.setUsername("observador01");
+            usuario.setPasswordHash(passwordEncoder.encode("Admin#123"));
+            usuario.setRole(observadorRole);
+            usuario.setActivo(true);
+            usuario.setBloqueado(false);
+            usuario.setEmail("observador01@example.com");
+            usuarioRepository.save(usuario);
+            log.info("Default user observador01 created");
+        });
+    }
+
     private Role ensureRole(String nombre, String descripcion, int nivelPermisos) {
         return roleRepository.findByNombreIgnoreCase(nombre)
             .map(role -> updateRoleIfNecessary(role, descripcion, nivelPermisos))
@@ -162,4 +206,8 @@ public class DefaultDataInitializer implements CommandLineRunner {
         }
         return role;
     }
+
+    // La creación de psicólogos bootstrap ahora la realiza el microservicio de gestión
+    // utilizando directamente la tabla 'usuarios' compartida en Oracle. Por ello,
+    // este inicializador solo se encarga de asegurar roles y usuarios.
 }
