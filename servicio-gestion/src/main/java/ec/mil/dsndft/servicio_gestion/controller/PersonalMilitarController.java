@@ -3,6 +3,8 @@ package ec.mil.dsndft.servicio_gestion.controller;
 import ec.mil.dsndft.servicio_gestion.model.dto.PersonalMilitarDTO;
 import ec.mil.dsndft.servicio_gestion.model.dto.PersonalMilitarUpsertRequestDTO;
 import ec.mil.dsndft.servicio_gestion.service.PersonalMilitarService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -26,18 +28,23 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/personal-militar")
 @RequiredArgsConstructor
+@Tag(name = "Personal militar", description = "Gestión de datos de personal militar")
 public class PersonalMilitarController {
 
 	private final PersonalMilitarService personalMilitarService;
 
 	@PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO')")
 	@GetMapping
+	@Operation(summary = "Listar personal",
+	           description = "Obtiene el listado completo de personal militar")
 	public ResponseEntity<List<PersonalMilitarDTO>> listarPersonal() {
 		return ResponseEntity.ok(personalMilitarService.findAll());
 	}
 
 	@PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO')")
 	@GetMapping("/{id}")
+	@Operation(summary = "Obtener personal por ID",
+	           description = "Recupera los datos de un militar por su identificador")
 	public ResponseEntity<PersonalMilitarDTO> obtenerPersonal(@PathVariable Long id) {
 		return ResponseEntity.ok(personalMilitarService.findById(id));
 	}
@@ -45,6 +52,8 @@ public class PersonalMilitarController {
 
 	@PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO')")
 	@GetMapping("/buscar")
+	@Operation(summary = "Buscar personal",
+	           description = "Busca personal por cédula o por nombres/apellidos con paginación")
 	public ResponseEntity<?> buscarPersonal(
 		@RequestParam(value = "cedula", required = false) String cedula,
 		@RequestParam(value = "apellidos", required = false) String apellidos,
@@ -84,6 +93,8 @@ public class PersonalMilitarController {
 
 	@PreAuthorize("hasRole('PSICOLOGO')")
 	@PostMapping
+	@Operation(summary = "Registrar personal",
+	           description = "Registra un nuevo militar en el sistema")
 	public ResponseEntity<PersonalMilitarDTO> registrarPersonal(
 		@Valid @RequestBody PersonalMilitarUpsertRequestDTO request
 	) {
@@ -93,6 +104,8 @@ public class PersonalMilitarController {
 
 	@PreAuthorize("hasRole('PSICOLOGO')")
 	@PutMapping("/{id}")
+	@Operation(summary = "Actualizar personal",
+	           description = "Actualiza los datos de un militar existente")
 	public ResponseEntity<PersonalMilitarDTO> actualizarPersonal(
 		@PathVariable Long id,
 		@Valid @RequestBody PersonalMilitarUpsertRequestDTO request

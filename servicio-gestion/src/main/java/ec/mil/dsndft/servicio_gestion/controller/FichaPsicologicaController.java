@@ -2,6 +2,8 @@ package ec.mil.dsndft.servicio_gestion.controller;
 
 import ec.mil.dsndft.servicio_gestion.model.dto.*;
 import ec.mil.dsndft.servicio_gestion.service.FichaPsicologicaService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,7 @@ import java.util.Map;
 @RequestMapping("/api/fichas-psicologicas")
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "app.controllers.fichas", name = "enabled", havingValue = "true", matchIfMissing = true)
+@Tag(name = "Fichas psicológicas", description = "Gestión completa del ciclo de vida de las fichas psicológicas")
 public class FichaPsicologicaController {
 
     private final FichaPsicologicaService fichaPsicologicaService;
@@ -27,6 +30,8 @@ public class FichaPsicologicaController {
 
     @PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO')")
     @GetMapping
+    @Operation(summary = "Listar fichas",
+               description = "Lista fichas psicológicas con filtros por psicólogo, personal, estado, condición y solo activas")
     public ResponseEntity<List<FichaPsicologicaDTO>> listarFichas(
         @RequestParam(required = false) Long psicologoId,
         @RequestParam(required = false) Long personalMilitarId,
@@ -50,6 +55,8 @@ public class FichaPsicologicaController {
 
     @PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO')")
     @GetMapping("/historial/{personalMilitarId}")
+    @Operation(summary = "Historial de fichas por persona",
+               description = "Obtiene todas las fichas psicológicas registradas para un mismo militar")
     public ResponseEntity<List<FichaPsicologicaDTO>> obtenerHistorial(@PathVariable Long personalMilitarId) {
         return ResponseEntity.ok(fichaPsicologicaService.obtenerHistorialPorPersonal(personalMilitarId));
     }
@@ -57,6 +64,8 @@ public class FichaPsicologicaController {
         // Nuevo endpoint: historial paginado con filtros (cédula del psicólogo y rango de fechas)
         @PreAuthorize("hasAnyRole('ADMINISTRADOR','PSICOLOGO')")
         @GetMapping("/historial/{personalMilitarId}/page")
+        @Operation(summary = "Historial paginado de fichas",
+               description = "Devuelve el historial de fichas de un militar con filtros de psicólogo y fechas, paginado")
         public ResponseEntity<ec.mil.dsndft.servicio_gestion.model.dto.FichaPsicologicaPageSafeDTO> obtenerHistorialPaginado(
             @PathVariable Long personalMilitarId,
             @RequestParam(required = false) String cedulaPsicologo,
@@ -114,6 +123,8 @@ public class FichaPsicologicaController {
 
     @PreAuthorize("hasRole('PSICOLOGO')")
     @PostMapping
+    @Operation(summary = "Crear ficha psicológica",
+               description = "Crea una nueva ficha psicológica a partir de los datos generales")
     public ResponseEntity<FichaPsicologicaDTO> crearFicha(@Valid @RequestBody FichaDatosGeneralesRequestDTO request) {
         FichaPsicologicaDTO creada = fichaPsicologicaService.crearFicha(request);
         return ResponseEntity.created(URI.create("/api/fichas-psicologicas/" + creada.getId())).body(creada);
@@ -182,6 +193,8 @@ public class FichaPsicologicaController {
 
     @PreAuthorize("hasRole('PSICOLOGO')")
     @PostMapping("/{id}/finalizar")
+    @Operation(summary = "Finalizar ficha",
+               description = "Marca la ficha como finalizada, bloqueando cambios posteriores según reglas del sistema")
     public ResponseEntity<FichaPsicologicaDTO> finalizarFicha(@PathVariable Long id) {
         return ResponseEntity.ok(fichaPsicologicaService.finalizarFicha(id));
     }

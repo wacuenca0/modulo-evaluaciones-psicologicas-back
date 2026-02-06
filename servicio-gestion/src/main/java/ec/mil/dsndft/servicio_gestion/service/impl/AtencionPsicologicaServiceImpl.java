@@ -278,12 +278,13 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
         atencion.setEstado("FINALIZADA");
         
         AtencionPsicologica updated = atencionRepository.save(atencion);
-        // Audit: Crear historial
+        // Audit: Crear historial con el psicólogo que realiza la acción
+        Psicologo psicologoActor = authenticatedPsicologoProvider.requireCurrent();
         AtencionPsicologicaHistorial historial = AtencionPsicologicaHistorial.builder()
             .atencion(updated)
             .estado(updated.getEstado())
             .razonCambio("Finalización de atención")
-            .psicologo(updated.getPsicologo())
+            .psicologo(psicologoActor)
             .fechaCambio(LocalDateTime.now())
             .build();
         historialRepository.save(historial);
@@ -300,12 +301,13 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
         atencion.setRazonCancelacion(razon);
         
         AtencionPsicologica updated = atencionRepository.save(atencion);
-        // Audit: Crear historial
+        // Audit: Crear historial con el psicólogo que realiza la acción
+        Psicologo psicologoActor = authenticatedPsicologoProvider.requireCurrent();
         AtencionPsicologicaHistorial historial = AtencionPsicologicaHistorial.builder()
             .atencion(updated)
             .estado(updated.getEstado())
             .razonCambio("Cancelación: " + razon)
-            .psicologo(updated.getPsicologo())
+            .psicologo(psicologoActor)
             .fechaCambio(LocalDateTime.now())
             .build();
         historialRepository.save(historial);

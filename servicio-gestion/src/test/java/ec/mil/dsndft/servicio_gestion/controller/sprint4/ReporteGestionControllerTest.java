@@ -46,7 +46,16 @@ class ReporteGestionControllerTest {
     void obtenerAtenciones_debeRetornarOk() throws Exception {
         ReporteAtencionPsicologoDTO dto = new ReporteAtencionPsicologoDTO();
         Page<ReporteAtencionPsicologoDTO> page = new PageImpl<>(List.of(dto), PageRequest.of(0, 10), 1);
-        Mockito.when(reporteGestionService.obtenerAtencionesPorPsicologo(any(), any(), any(), any(), any(), any(), any())).thenReturn(page);
+        Mockito.when(reporteGestionService.obtenerAtencionesPorPsicologo(
+            any(),        // psicologoId
+            anyString(),   // psicologoCedula
+            any(),         // fechaDesde
+            any(),         // fechaHasta
+            any(),         // diagnosticoId
+            anyString(),   // cedula
+            anyString(),   // unidadMilitar
+            any()          // pageable
+        )).thenReturn(page);
         mockMvc.perform(get("/api/reportes/atenciones-psicologos"))
                 .andExpect(status().isOk());
     }
@@ -68,7 +77,16 @@ class ReporteGestionControllerTest {
     void obtenerSeguimientoTransferencia_debeRetornarOk() throws Exception {
         ReporteSeguimientoTransferenciaDTO dto = new ReporteSeguimientoTransferenciaDTO();
         Page<ReporteSeguimientoTransferenciaDTO> page = new PageImpl<>(List.of(dto), PageRequest.of(0, 10), 1);
-        Mockito.when(reporteGestionService.obtenerReporteSeguimientoTransferencia(any(), any(), any(), any(), any(), anyBoolean(), any())).thenReturn(page);
+        Mockito.when(reporteGestionService.obtenerReporteSeguimientoTransferencia(
+            any(),        // psicologoId
+            anyString(),   // psicologoCedula
+            anyString(),   // cedula
+            anyString(),   // unidadMilitar
+            any(),         // fechaDesde
+            any(),         // fechaHasta
+            anyBoolean(),  // incluirSeguimientos
+            any()          // pageable
+        )).thenReturn(page);
         mockMvc.perform(get("/api/reportes/seguimiento-transferencia"))
                 .andExpect(status().isOk());
     }

@@ -4,6 +4,8 @@ import ec.mil.dsndft.servicio_gestion.entity.ArchivoFichaPsicologica;
 import ec.mil.dsndft.servicio_gestion.entity.FichaPsicologica;
 import ec.mil.dsndft.servicio_gestion.repository.FichaPsicologicaRepository;
 import ec.mil.dsndft.servicio_gestion.service.FtpService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import jakarta.persistence.EntityNotFoundException;
@@ -21,11 +23,14 @@ import java.util.List;
 @RequiredArgsConstructor
 @ConditionalOnClass(name = "ec.mil.dsndft.servicio_gestion.service.FtpService")
 @ConditionalOnProperty(prefix = "ficha.archivos.ftp", name = "enabled", havingValue = "true", matchIfMissing = false)
+@Tag(name = "Archivos de ficha", description = "Subida de archivos asociados a fichas psicológicas")
 public class ArchivoFichaPsicologicaController {
     private final FtpService ftpService;
     private final FichaPsicologicaRepository fichaPsicologicaRepository;
 
     @PostMapping("/{fichaId}/subir")
+    @Operation(summary = "Subir archivos de una ficha",
+               description = "Sube uno o varios archivos a un servidor FTP y los asocia a una ficha psicológica")
     public ResponseEntity<List<ArchivoFichaPsicologica>> subirArchivos(
             @PathVariable Long fichaId,
             @RequestParam("archivos") List<MultipartFile> archivos,

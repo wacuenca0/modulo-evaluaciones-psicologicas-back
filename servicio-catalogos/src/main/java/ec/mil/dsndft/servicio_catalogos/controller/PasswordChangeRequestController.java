@@ -2,6 +2,8 @@ package ec.mil.dsndft.servicio_catalogos.controller;
 
 import ec.mil.dsndft.servicio_catalogos.model.dto.PasswordChangeRequestDTO;
 import ec.mil.dsndft.servicio_catalogos.service.PasswordChangeRequestService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -11,6 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/password-change")
+@Tag(name = "Solicitudes de cambio de contraseña", description = "Gestión de solicitudes de cambio de contraseña de usuarios")
 public class PasswordChangeRequestController {
 
     private final PasswordChangeRequestService passwordChangeService;
@@ -21,6 +24,8 @@ public class PasswordChangeRequestController {
 
     // Cualquier usuario puede solicitar cambio de contraseña (libre, sin autenticación)
     @PostMapping("/request")
+    @Operation(summary = "Solicitar cambio de contraseña",
+               description = "Crea una solicitud de cambio de contraseña para un usuario")
     public ResponseEntity<PasswordChangeRequestDTO> requestPasswordChange(@RequestParam String username, @RequestParam String motivo) {
         PasswordChangeRequestDTO response = passwordChangeService.createRequest(username, motivo);
         return ResponseEntity.ok(response);
@@ -29,6 +34,8 @@ public class PasswordChangeRequestController {
     // Solo administradores pueden ver solicitudes pendientes
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     @GetMapping("/pending")
+    @Operation(summary = "Listar solicitudes pendientes",
+               description = "Obtiene las solicitudes de cambio de contraseña con estado pendiente")
     public ResponseEntity<List<PasswordChangeRequestDTO>> getPendingRequests() {
         List<PasswordChangeRequestDTO> requests = passwordChangeService.getPendingRequests();
         return ResponseEntity.ok(requests);
@@ -37,6 +44,8 @@ public class PasswordChangeRequestController {
     // Listar solicitudes por estado (PENDIENTE, APROBADO, RECHAZADO)
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     @GetMapping("")
+    @Operation(summary = "Listar solicitudes por estado",
+               description = "Filtra las solicitudes de cambio de contraseña por estado")
     public ResponseEntity<List<PasswordChangeRequestDTO>> getRequestsByStatus(@RequestParam String status) {
         List<PasswordChangeRequestDTO> requests = passwordChangeService.getRequestsByStatus(status);
         return ResponseEntity.ok(requests);
@@ -45,6 +54,8 @@ public class PasswordChangeRequestController {
     // Solo administradores pueden aprobar solicitudes
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PostMapping("/{requestId}/approve")
+    @Operation(summary = "Aprobar solicitud",
+               description = "Aprueba una solicitud de cambio de contraseña y actualiza la clave del usuario")
     public ResponseEntity<PasswordChangeRequestDTO> approveRequest(@PathVariable Long requestId, @RequestParam String newPassword, Authentication authentication) {
         String adminUsername = authentication.getName();
         PasswordChangeRequestDTO response = passwordChangeService.approveRequest(requestId, newPassword, adminUsername);
@@ -54,6 +65,8 @@ public class PasswordChangeRequestController {
     // Solo administradores pueden rechazar solicitudes
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PostMapping("/{requestId}/reject")
+    @Operation(summary = "Rechazar solicitud",
+               description = "Rechaza una solicitud de cambio de contraseña indicando opcionalmente el motivo")
     public ResponseEntity<PasswordChangeRequestDTO> rejectRequest(@PathVariable Long requestId, @RequestParam(required = false) String reason, Authentication authentication) {
         String adminUsername = authentication.getName();
         PasswordChangeRequestDTO response = passwordChangeService.rejectRequest(requestId, adminUsername, reason);

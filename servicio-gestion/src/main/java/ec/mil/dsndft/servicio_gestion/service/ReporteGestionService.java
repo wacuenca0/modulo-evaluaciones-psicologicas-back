@@ -12,6 +12,7 @@ import java.util.List;
 public interface ReporteGestionService {
 
     Page<ReporteAtencionPsicologoDTO> obtenerAtencionesPorPsicologo(Long psicologoId,
+                                                                    String psicologoCedula,
                                                                     LocalDate fechaDesde,
                                                                     LocalDate fechaHasta,
                                                                     Long diagnosticoId,
@@ -42,6 +43,7 @@ public interface ReporteGestionService {
      * @param incluirSeguimientos si true, cuenta atenciones con tipoConsulta 'SEGUIMIENTO'
      */
     Page<ReporteSeguimientoTransferenciaDTO> obtenerReporteSeguimientoTransferencia(Long psicologoId,
+                                                                                   String psicologoCedula,
                                                                                    String cedula,
                                                                                    String unidadMilitar,
                                                                                    LocalDate fechaDesde,

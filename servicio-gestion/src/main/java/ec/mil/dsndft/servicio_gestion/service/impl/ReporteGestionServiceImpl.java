@@ -20,8 +20,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -33,6 +34,7 @@ public class ReporteGestionServiceImpl implements ReporteGestionService {
     private final PsicologoRepository psicologoRepository;
     private final FichaPsicologicaRepository fichaPsicologicaRepository;
     private final AtencionPsicologicaRepository atencionRepository;
+    private final AtencionPsicologicaHistorialRepository atencionHistorialRepository;
     private final AuthenticatedPsicologoProvider psicologoAutenticadoProvider;
     private final PersonalMilitarRepository personalMilitarRepository;
     private final CatalogoDiagnosticoCie10Service catalogoDiagnosticoCie10Service;
@@ -40,6 +42,7 @@ public class ReporteGestionServiceImpl implements ReporteGestionService {
     @Override
     @Transactional(readOnly = true)
     public Page<ReporteAtencionPsicologoDTO> obtenerAtencionesPorPsicologo(Long psicologoId,
+                                                                           String psicologoCedula,
                                                                            LocalDate fechaDesde,
                                                                            LocalDate fechaHasta,
                                                                            Long diagnosticoId,
@@ -47,13 +50,13 @@ public class ReporteGestionServiceImpl implements ReporteGestionService {
                                                                            String unidadMilitar,
                                                                            Pageable pageable) {
         validarRangoFechas(fechaDesde, fechaHasta);
-        Long psicologoFiltro = ajustarFiltroPsicologo(psicologoId);
+        Long psicologoFiltro = resolverPsicologoId(psicologoId, psicologoCedula);
         CatalogoDiagnosticoCie10DTO diagnostico = resolverDiagnostico(diagnosticoId);
         Long diagnosticoFiltro = diagnostico != null ? diagnostico.getId() : null;
         String unidadFiltro = normalizarFiltro(unidadMilitar);
         String cedulaFiltro = normalizarCedula(cedula);
 
-        // Obtener todas las atenciones filtradas
+        // Obtener todas las atenciones filtradas (por asignación de ficha)
         List<AtencionPsicologica> atenciones = atencionRepository.findAll().stream()
             .filter(a -> (psicologoFiltro == null || (a.getPsicologo() != null && psicologoFiltro.equals(a.getPsicologo().getId())))
                 && (fechaDesde == null || (a.getFechaAtencion() != null && !a.getFechaAtencion().isBefore(fechaDesde)))
@@ -64,7 +67,7 @@ public class ReporteGestionServiceImpl implements ReporteGestionService {
             )
             .collect(Collectors.toList());
 
-        // Agrupar por psicólogo y contar por estado
+        // Agrupar por psicólogo (asignación de la ficha) y contar por estado actual de la atención
         List<ReporteAtencionPsicologoDTO> reporte = atenciones.stream()
             .collect(Collectors.groupingBy(a -> a.getPsicologo() != null ? a.getPsicologo().getId() : null))
             .entrySet().stream()
@@ -105,6 +108,102 @@ public class ReporteGestionServiceImpl implements ReporteGestionService {
             })
             .filter(dto -> dto != null)
             .collect(Collectors.toList());
+
+        // -------- Estadísticas adicionales basadas en historial (acciones por psicólogo) --------
+        List<AtencionPsicologicaHistorial> historiales = atencionHistorialRepository.findAll();
+
+        for (AtencionPsicologicaHistorial historial : historiales) {
+            Psicologo actor = historial.getPsicologo();
+            AtencionPsicologica atencion = historial.getAtencion();
+            if (actor == null || atencion == null) {
+                continue;
+            }
+
+            Long actorId = actor.getId();
+            if (actorId == null) {
+                continue;
+            }
+
+            // Aplicar mismos filtros que al listado principal, pero respecto al psicólogo actor
+            if (psicologoFiltro != null && !psicologoFiltro.equals(actorId)) {
+                continue;
+            }
+
+            if (fechaDesde != null && (atencion.getFechaAtencion() == null || atencion.getFechaAtencion().isBefore(fechaDesde))) {
+                continue;
+            }
+            if (fechaHasta != null && (atencion.getFechaAtencion() == null || atencion.getFechaAtencion().isAfter(fechaHasta))) {
+                continue;
+            }
+
+            if (diagnosticoFiltro != null) {
+                boolean coincideDiagnostico = atencion.getDiagnosticos() != null &&
+                    atencion.getDiagnosticos().stream().anyMatch(d -> diagnosticoFiltro.equals(d.getId()));
+                if (!coincideDiagnostico) {
+                    continue;
+                }
+            }
+
+            if (cedulaFiltro != null) {
+                if (atencion.getPersonalMilitar() == null ||
+                    atencion.getPersonalMilitar().getCedula() == null ||
+                    !cedulaFiltro.equalsIgnoreCase(atencion.getPersonalMilitar().getCedula())) {
+                    continue;
+                }
+            }
+
+            if (unidadFiltro != null) {
+                String unidadActor = actor.getUnidadMilitar();
+                if (unidadActor == null || !unidadFiltro.equalsIgnoreCase(unidadActor)) {
+                    continue;
+                }
+            }
+
+            // Buscar/crear entrada de reporte para este psicólogo (actor)
+            ReporteAtencionPsicologoDTO dto = reporte.stream()
+                .filter(r -> actorId.equals(r.getPsicologoId()))
+                .findFirst()
+                .orElseGet(() -> {
+                    ReporteAtencionPsicologoDTO nuevo = new ReporteAtencionPsicologoDTO();
+                    nuevo.setPsicologoId(actorId);
+                    nuevo.setPsicologoNombre(actor.getApellidosNombres());
+                    nuevo.setPsicologoUsername(actor.getUsername());
+                    nuevo.setPsicologoUnidadMilitar(actor.getUnidadMilitar());
+                    nuevo.setTotalFichasAtendidas(0L);
+                    nuevo.setFichasActivas(0L);
+                    nuevo.setFichasObservacion(0L);
+                    nuevo.setTotalSeguimientos(0L);
+                    nuevo.setPersonasAtendidas(0L);
+                    reporte.add(nuevo);
+                    return nuevo;
+                });
+
+            String estado = historial.getEstado() != null
+                ? historial.getEstado().toUpperCase(java.util.Locale.ROOT)
+                : "";
+
+            if ("PROGRAMADA".equals(estado)) {
+                dto.setTotalAccionesProgramadas(
+                    (dto.getTotalAccionesProgramadas() == null ? 0L : dto.getTotalAccionesProgramadas()) + 1
+                );
+            } else if ("EN_CURSO".equals(estado)) {
+                dto.setTotalAccionesEnCurso(
+                    (dto.getTotalAccionesEnCurso() == null ? 0L : dto.getTotalAccionesEnCurso()) + 1
+                );
+            } else if ("FINALIZADA".equals(estado)) {
+                dto.setTotalAccionesFinalizadas(
+                    (dto.getTotalAccionesFinalizadas() == null ? 0L : dto.getTotalAccionesFinalizadas()) + 1
+                );
+            } else if ("CANCELADA".equals(estado)) {
+                dto.setTotalAccionesCanceladas(
+                    (dto.getTotalAccionesCanceladas() == null ? 0L : dto.getTotalAccionesCanceladas()) + 1
+                );
+            } else if ("NO_ASISTIO".equals(estado)) {
+                dto.setTotalAccionesNoAsistio(
+                    (dto.getTotalAccionesNoAsistio() == null ? 0L : dto.getTotalAccionesNoAsistio()) + 1
+                );
+            }
+        }
 
         return paginarEnMemoria(reporte, pageable);
     }
@@ -336,9 +435,21 @@ public class ReporteGestionServiceImpl implements ReporteGestionService {
         return trimmed.isEmpty() ? null : trimmed.toUpperCase(Locale.ROOT);
     }
 
-        @Override
+    private Long resolverPsicologoId(Long psicologoId, String psicologoCedula) {
+        Long idBase = psicologoId;
+        String cedulaNormalizada = normalizarCedula(psicologoCedula);
+        if (cedulaNormalizada != null) {
+            Psicologo psicologo = psicologoRepository.findByCedula(cedulaNormalizada)
+                .orElseThrow(() -> new EntityNotFoundException("Psicologo no encontrado para la cedula indicada"));
+            idBase = psicologo.getId();
+        }
+        return ajustarFiltroPsicologo(idBase);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Page<ReporteSeguimientoTransferenciaDTO> obtenerReporteSeguimientoTransferencia(Long psicologoId,
+                                                                                          String psicologoCedula,
                                                                                           String cedula,
                                                                                           String unidadMilitar,
                                                                                           LocalDate fechaDesde,
@@ -348,7 +459,7 @@ public class ReporteGestionServiceImpl implements ReporteGestionService {
         // Normalizar filtros
         String cedulaFiltro = normalizarCedula(cedula);
         String unidadFiltro = normalizarFiltro(unidadMilitar);
-        Long psicologoFiltro = ajustarFiltroPsicologo(psicologoId);
+        Long psicologoFiltro = resolverPsicologoId(psicologoId, psicologoCedula);
 
         // Buscar fichas con condición clínica SEGUIMIENTO o TRANSFERENCIA
         List<FichaPsicologica> fichas = fichaPsicologicaRepository.findAll().stream()

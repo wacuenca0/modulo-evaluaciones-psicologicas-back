@@ -37,6 +37,13 @@ public class ReporteAtencionPsicologoDTO {
     private Long personasAtendidas;
     
     private LocalDate ultimaAtencion;
+
+    // Estadísticas por acciones (basadas en historial)
+    private Long totalAccionesProgramadas;
+    private Long totalAccionesEnCurso;
+    private Long totalAccionesFinalizadas;
+    private Long totalAccionesCanceladas;
+    private Long totalAccionesNoAsistio;
     private Long filtroDiagnosticoId;
     private String filtroDiagnosticoCodigo;
     private String filtroDiagnosticoTexto;
