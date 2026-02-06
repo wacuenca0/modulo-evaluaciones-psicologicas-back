@@ -50,6 +50,8 @@ public class AtencionPsicologicaResponseDTO {
     private String estado;
     private String razonCancelacion;
     private Boolean activo;
+    // Motivo de la reprogramación (informativo, si existe)
+    private String motivoReprogramacion;
     
     // Auditoría
     private LocalDateTime createdAt;

@@ -323,23 +323,26 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
             throw new RuntimeException("Solo se pueden reprogramar atenciones activas y no finalizadas/canceladas");
         }
 
-        // Actualizar los campos de reprogramación
+        // Actualizar los campos de reprogramación (sin tocar el motivo original de la consulta)
         if (request.getFechaAtencion() != null) atencion.setFechaAtencion(request.getFechaAtencion());
         if (request.getHoraInicio() != null) atencion.setHoraInicio(request.getHoraInicio().toString());
         if (request.getHoraFin() != null) atencion.setHoraFin(request.getHoraFin().toString());
         if (request.getTipoAtencion() != null) atencion.setTipoAtencion(request.getTipoAtencion());
-        if (request.getMotivoReprogramacion() != null) atencion.setMotivoConsulta(request.getMotivoReprogramacion());
 
         // Siempre cambiar el estado a REPROGRAMADA
         atencion.setEstado("REPROGRAMADA");
 
         AtencionPsicologica updated = atencionRepository.save(atencion);
-        // Audit: Crear historial con el psicólogo autenticado
+        // Audit: Crear historial con el psicólogo autenticado y motivo de reprogramación
         Psicologo psicologo = authenticatedPsicologoProvider.requireCurrent();
+        String motivoRep = request.getMotivoReprogramacion();
+        String razonCambio = (motivoRep != null && !motivoRep.isBlank())
+            ? "Reprogramación: " + motivoRep.trim()
+            : "Reprogramación de atención";
         AtencionPsicologicaHistorial historial = AtencionPsicologicaHistorial.builder()
             .atencion(updated)
             .estado(updated.getEstado())
-            .razonCambio("Reprogramación de atención")
+            .razonCambio(razonCambio)
             .psicologo(psicologo)
             .fechaCambio(LocalDateTime.now())
             .build();
@@ -397,6 +400,26 @@ public class AtencionPsicologicaServiceImpl implements AtencionPsicologicaServic
         dto.setCreatedAt(atencion.getCreatedAt());
         dto.setUpdatedAt(atencion.getUpdatedAt());
         dto.setDuracionMinutos(atencion.obtenerDuracionMinutos());
+        // Motivo de reprogramación: buscar en historial el último cambio de tipo "Reprogramación: <motivo>"
+        try {
+            if (atencion.getId() != null) {
+                java.util.List<ec.mil.dsndft.servicio_gestion.entity.AtencionPsicologicaHistorial> cambios =
+                    historialRepository.findByAtencionIdOrderByFechaCambioAsc(atencion.getId());
+                java.util.Optional<ec.mil.dsndft.servicio_gestion.entity.AtencionPsicologicaHistorial> ultimoReprog =
+                    cambios.stream()
+                        .filter(h -> h.getRazonCambio() != null && h.getRazonCambio().startsWith("Reprogramación"))
+                        .reduce((a, b) -> b); // tomar el último
+                if (ultimoReprog.isPresent()) {
+                    String rc = ultimoReprog.get().getRazonCambio();
+                    String motivo = rc.startsWith("Reprogramación:") ? rc.substring("Reprogramación:".length()).trim() : null;
+                    dto.setMotivoReprogramacion(motivo);
+                } else {
+                    dto.setMotivoReprogramacion(null);
+                }
+            }
+        } catch (Exception ignored) {
+            dto.setMotivoReprogramacion(null);
+        }
         // Asignar tipoEvaluacion si existe fichaPsicologica
         if (atencion.getFichaPsicologica() != null) {
             dto.setTipoEvaluacion(atencion.getFichaPsicologica().getTipoEvaluacion());

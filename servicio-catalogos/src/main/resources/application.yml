@@ -14,6 +14,8 @@ spring:
     generate-ddl: true
     hibernate:
       ddl-auto: update
+  jmx:
+    enabled: false
 
 security:
   roles:
