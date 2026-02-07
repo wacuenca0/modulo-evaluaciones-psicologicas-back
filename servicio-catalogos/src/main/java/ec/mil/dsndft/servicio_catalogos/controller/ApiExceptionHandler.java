@@ -3,6 +3,7 @@ package ec.mil.dsndft.servicio_catalogos.controller;
 import ec.mil.dsndft.servicio_catalogos.model.dto.ApiResponse;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -80,6 +81,13 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         log.warn("Violación de restricciones: {}", errors);
         return ResponseEntity.badRequest()
             .body(ApiResponse.error("La solicitud contiene datos inválidos", errors));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Error de integridad de datos: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(ApiResponse.error("No se pudo completar la operación por un conflicto de datos: " + ex.getMostSpecificCause().getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

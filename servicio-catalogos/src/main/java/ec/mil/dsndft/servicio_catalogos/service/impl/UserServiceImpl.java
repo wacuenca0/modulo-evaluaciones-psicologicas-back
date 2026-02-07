@@ -44,7 +44,6 @@ public class UserServiceImpl implements UserService {
 
 
     @Override
-    @Transactional
     public UserDTO createUser(CreateUserRequestDTO createUserRequestDTO) {
         // 1. Validar si ya existe usuario con el mismo username (ignorando mayúsculas/minúsculas)
         String usernameTrim = createUserRequestDTO.getUsername() != null ? createUserRequestDTO.getUsername().trim() : null;
@@ -120,12 +119,28 @@ public class UserServiceImpl implements UserService {
             psicologoRequest.setEspecialidad(psicologoData.getEspecialidad());
             psicologoRequest.setActivo(Boolean.TRUE);
 
-            PsicologoResponse psicologoCreado = psicologoClient.crearPsicologo(psicologoRequest);
-            if (psicologoCreado == null || psicologoCreado.getId() == null) {
-                log.error("No se pudo crear el psicólogo en el microservicio de gestión. Payload: {}", psicologoRequest);
-                throw new IllegalStateException("No se pudo crear el psicólogo en el microservicio de gestión");
+            try {
+                PsicologoResponse psicologoCreado = psicologoClient.crearPsicologo(psicologoRequest);
+                if (psicologoCreado == null || psicologoCreado.getId() == null) {
+                    log.error("No se pudo crear el psicólogo en el microservicio de gestión. Payload: {}", psicologoRequest);
+                    // rollback explícito del usuario creado para no dejar inconsistencias
+                    safeDeleteUsuario(usuario.getId());
+                    throw new IllegalStateException("No se pudo crear el psicólogo en el microservicio de gestión");
+                }
+                log.info("Psicólogo creado correctamente en gestión: {} (ID: {})", psicologoCreado.getCedula(), psicologoCreado.getId());
+            } catch (HttpClientErrorException ex) {
+                log.error("Error HTTP al crear psicólogo para usuario {}. Se eliminará el usuario creado.", usuario.getUsername(), ex);
+                safeDeleteUsuario(usuario.getId());
+                if (ex.getStatusCode() == HttpStatus.CONFLICT) {
+                    // Propagar como violación de integridad para que llegue como 409 al frontend
+                    throw new DataIntegrityViolationException("No se pudo crear el psicólogo asociado al usuario: " + ex.getResponseBodyAsString(), ex);
+                }
+                throw new IllegalStateException("No se pudo crear el psicólogo asociado al usuario por un error en el microservicio de gestión", ex);
+            } catch (RestClientException ex) {
+                log.error("Error de comunicación al crear psicólogo para usuario {}. Se eliminará el usuario creado.", usuario.getUsername(), ex);
+                safeDeleteUsuario(usuario.getId());
+                throw new IllegalStateException("No se pudo crear el psicólogo asociado al usuario por un problema de comunicación con el microservicio de gestión", ex);
             }
-            log.info("Psicólogo creado correctamente en gestión: {} (ID: {})", psicologoCreado.getCedula(), psicologoCreado.getId());
         } else {
             log.info("Rol '{}' no requiere creación de psicólogo. Usuario ID: {}", role.getNombre(), usuario.getId());
         }
@@ -146,6 +161,18 @@ public class UserServiceImpl implements UserService {
         // Validar formato de cédula (ejemplo para Ecuador)
         if (!psicologoData.getCedula().trim().matches("^\\d{10}$")) {
             throw new IllegalArgumentException("La cédula debe tener 10 dígitos numéricos");
+        }
+    }
+
+    private void safeDeleteUsuario(Long usuarioId) {
+        if (usuarioId == null) {
+            return;
+        }
+        try {
+            log.info("Eliminando usuario {} debido a fallo en la creación de psicólogo asociado", usuarioId);
+            usuarioRepository.deleteById(usuarioId);
+        } catch (Exception ex) {
+            log.error("Error al eliminar usuario {} durante el rollback de creación de psicólogo", usuarioId, ex);
         }
     }
 
