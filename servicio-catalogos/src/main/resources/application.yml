@@ -16,6 +16,7 @@ spring:
     generate-ddl: true
     hibernate:
       ddl-auto: update
+    database-platform: org.hibernate.dialect.OracleDialect
   jmx:
     enabled: false
 
