@@ -181,6 +181,22 @@ public class FichaPsicologicaServiceImpl implements FichaPsicologicaService {
 
         Psicologo psicologo = obtenerPsicologoAutenticado(ficha.getPsicologo());
         CondicionClinicaEnum condicion = resolveCondicionRequired(request.getCondicion());
+
+        // Si viene observación desde el modal, la persistimos en la ficha
+        // (sin exigir motivoConsulta aquí, porque ese flujo se gestiona en su sección)
+        aplicarObservacionCondicion(ficha, request.getObservaciones());
+
+        // No permitir cambios de condición en fichas ya cerradas o archivadas
+        if (ficha.getEstado() == EstadoFichaEnum.CERRADA || ficha.getEstado() == EstadoFichaEnum.ARCHIVADA) {
+            throw new IllegalArgumentException("La ficha ya se encuentra cerrada o archivada y no permite cambios en la condición clínica");
+        }
+
+        // Validaciones de negocio específicas por condición
+        if ((CondicionClinicaEnum.SEGUIMIENTO.equals(condicion) || CondicionClinicaEnum.TRANSFERENCIA.equals(condicion))
+            && (request.getDiagnosticosCie10() == null || request.getDiagnosticosCie10().isEmpty())) {
+            throw new IllegalArgumentException("Debe seleccionar al menos un diagnóstico CIE-10 para la condición seleccionada");
+        }
+
         ficha.setCondicionClinica(condicion);
 
         // Asignar diagnósticos CIE-10 (múltiples)
@@ -194,22 +210,34 @@ public class FichaPsicologicaServiceImpl implements FichaPsicologicaService {
             ficha.setDiagnosticosCie10(java.util.Collections.emptyList());
         }
 
-            PlanSeguimiento plan = new PlanSeguimiento();
-            plan.setFrecuencia(request.getPlanFrecuencia() != null ? FrecuenciaSeguimientoEnum.valueOf(request.getPlanFrecuencia()) : null);
-            plan.setTipoSesion(request.getPlanTipoSesion() != null ? TipoSesionEnum.valueOf(request.getPlanTipoSesion()) : null);
-            plan.setDetalle(request.getPlanDetalle());
+        // Construir/limpiar plan de seguimiento según la condición
+        if (CondicionClinicaEnum.SEGUIMIENTO.equals(condicion) || CondicionClinicaEnum.TRANSFERENCIA.equals(condicion)) {
+            PlanSeguimiento plan = buildPlan(ficha, condicion, request.getPlanFrecuencia(), request.getPlanTipoSesion(), request.getPlanDetalle(), true);
             ficha.setPlanSeguimiento(plan);
-            ficha.setProximoSeguimiento(request.getProximoSeguimiento());
-            TransferenciaInfo transferencia = new TransferenciaInfo();
-            transferencia.setUnidadDestino(request.getTransferenciaUnidad());
-            transferencia.setObservacion(request.getTransferenciaObservacion());
-            transferencia.setFechaTransferencia(java.time.LocalDate.now());
-            ficha.setTransferenciaInfo(transferencia);
+        } else {
+            // Para ALTA u otras condiciones, no mantener plan de seguimiento
+            ficha.setPlanSeguimiento(null);
+        }
+
+        // Aplicar metadatos de seguimiento / transferencia (proximoSeguimiento, transferenciaInfo, etc.)
+        aplicarMetadatosCondicion(ficha, condicion, request.getProximoSeguimiento(), request.getTransferenciaUnidad(), request.getTransferenciaObservacion());
+
         ficha.setActualizadoPor(psicologo);
         ficha.setUpdatedAt(java.time.LocalDateTime.now());
         FichaPsicologica guardada = fichaPsicologicaRepository.save(ficha);
         // Eliminado: actualizarProgramacionSeguimiento para seguimientos
         return mapper.toDTO(guardada);
+    }
+
+    private void aplicarObservacionCondicion(FichaPsicologica ficha, String observacionesRaw) {
+        String observacion = trimOrNull(observacionesRaw);
+        if (observacion == null) {
+            return;
+        }
+        if (ficha.getSeccionObservacion() == null) {
+            ficha.setSeccionObservacion(new ec.mil.dsndft.servicio_gestion.model.value.ObservacionClinica());
+        }
+        ficha.getSeccionObservacion().setObservacionClinica(observacion);
     }
 
     @Override
@@ -787,6 +815,60 @@ public class FichaPsicologicaServiceImpl implements FichaPsicologicaService {
     }
 
     // Eliminado: método actualizarProgramacionSeguimiento relacionado a seguimientos
+
+    private PlanSeguimiento buildPlan(FichaPsicologica ficha,
+                                      CondicionClinicaEnum condicion,
+                                      String planFrecuenciaRaw,
+                                      String planTipoSesionRaw,
+                                      String planDetalleRaw,
+                                      boolean condicionObligatoria) {
+        String frecuenciaToken = trimOrNull(planFrecuenciaRaw);
+        String tipoSesionToken = trimOrNull(planTipoSesionRaw);
+        String detalle = trimOrNull(planDetalleRaw);
+
+        PlanSeguimiento existente = ficha.getPlanSeguimiento();
+
+        if (frecuenciaToken == null && existente != null && existente.getFrecuencia() != null) {
+            frecuenciaToken = existente.getFrecuencia().getCanonical();
+        }
+
+        if (tipoSesionToken == null && existente != null && existente.getTipoSesion() != null) {
+            tipoSesionToken = existente.getTipoSesion().getCanonical();
+        }
+
+        if (detalle == null && existente != null) {
+            detalle = existente.getDetalle();
+        }
+
+        // Para SEGUIMIENTO, frecuencia y tipo de sesión son obligatorios
+        // Para TRANSFERENCIA, el plan es opcional (puede ser null)
+        if (CondicionClinicaEnum.SEGUIMIENTO.equals(condicion)) {
+            if (frecuenciaToken == null) {
+                throw new IllegalArgumentException("La frecuencia del plan de seguimiento es obligatoria");
+            }
+            if (tipoSesionToken == null) {
+                throw new IllegalArgumentException("El tipo de sesion es obligatorio");
+            }
+        } else if (CondicionClinicaEnum.TRANSFERENCIA.equals(condicion)) {
+            // Para transferencia, si no hay frecuencia o tipo de sesión, no creamos plan
+            if (frecuenciaToken == null || tipoSesionToken == null) {
+                return null;
+            }
+        }
+
+        if (frecuenciaToken == null || tipoSesionToken == null) {
+            // Si llegamos aquí con tokens nulos, no se puede construir un plan coherente
+            return null;
+        }
+
+        return PlanSeguimiento.builder()
+            .frecuencia(FrecuenciaSeguimientoEnum.from(frecuenciaToken)
+                .orElseThrow(() -> new IllegalArgumentException("Frecuencia de seguimiento no soportada: " + planFrecuenciaRaw)))
+            .tipoSesion(TipoSesionEnum.from(tipoSesionToken)
+                .orElseThrow(() -> new IllegalArgumentException("Tipo de sesion no soportado: " + planTipoSesionRaw)))
+            .detalle(detalle)
+            .build();
+    }
 
     private LocalDate calcularProximoSeguimiento(FichaPsicologica ficha,
                                                  LocalDate ultimaFechaSeguimiento,

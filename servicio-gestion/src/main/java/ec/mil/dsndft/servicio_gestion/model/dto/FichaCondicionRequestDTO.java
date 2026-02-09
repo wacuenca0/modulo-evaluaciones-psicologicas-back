@@ -18,6 +18,12 @@ public class FichaCondicionRequestDTO {
     @JsonAlias({"condicion"})
     private String condicion;
 
+    // Observación clínica asociada a la asignación de condición
+    // (permite ALTA con solo observación, y registrar el texto para SEGUIMIENTO/TRANSFERENCIA)
+    @Size(max = 4000, message = "La observación no debe superar 4000 caracteres")
+    @JsonAlias({"observaciones", "observacion", "observacion_clinica", "observacionClinica"})
+    private String observaciones;
+
     // Lista de diagnósticos CIE-10
     @JsonAlias({"diagnosticos_cie10"})
     private java.util.List<DiagnosticoCie10DTO> diagnosticosCie10;
@@ -47,6 +53,14 @@ public class FichaCondicionRequestDTO {
 
     public void setCondicion(String condicion) {
         this.condicion = condicion;
+    }
+
+    public String getObservaciones() {
+        return observaciones;
+    }
+
+    public void setObservaciones(String observaciones) {
+        this.observaciones = observaciones;
     }
 
 
